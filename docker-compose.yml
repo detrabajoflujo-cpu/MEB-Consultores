@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: crm-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    volumes:
+      - ./n8n-data:/home/node/.n8n
+      - ./n8n-workflows:/home/node/workflows
+    environment:
+      - N8N_ENCRYPTION_KEY=proyectocitas-n8n-secret-key-2026
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-admin123}
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_ENV_VARS_EXPOSED=WHATSAPP_TOKEN,WHATSAPP_PHONE_ID,WHATSAPP_BUSINESS_ACCOUNT_ID,WHATSAPP_VERIFY_TOKEN,OPENAI_API_KEY,BLAND_AI_KEY,GOOGLE_DRIVE_FOLDER_ID,GOOGLE_SHEETS_ID,BACKEND_URL
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-crm_db}
+      - DB_POSTGRESDB_USER=${POSTGRES_USER:-crm_user}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-crm_pass}
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_WEBHOOK_URL=http://localhost:5678
+      # ── Credenciales accesibles en workflows via $env.NOMBRE ──
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BLAND_AI_KEY=${BLAND_AI_KEY}
+      - GOOGLE_DRIVE_FOLDER_ID=${GOOGLE_DRIVE_FOLDER_ID}
+      - GOOGLE_SHEETS_ID=${GOOGLE_SHEETS_ID}
+      - BACKEND_URL=http://backend:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: crm-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crm_db}
+      POSTGRES_USER: ${POSTGRES_USER:-crm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_pass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend-java/src/main/resources/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crm_user} -d ${POSTGRES_DB:-crm_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend-java
+      dockerfile: Dockerfile
+    container_name: crm-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-crm_db}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-crm_user}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-crm_pass}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-service-account.json
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
+      - BLAND_AI_KEY=${BLAND_AI_KEY}
+      - TZ=America/Mexico_City
+      - JAVA_OPTS=-Duser.timezone=America/Mexico_City
+    volumes:
+      - ./credentials:/app/credentials
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

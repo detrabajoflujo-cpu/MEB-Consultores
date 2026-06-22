@@ -1,0 +1,236 @@
+{
+  "name": "Módulo 0: Enrutador Maestro (HTTP Proxy)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-entrada-principal",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-principal",
+      "name": "Webhook Principal (Meta)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp-entrada-principal",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-get",
+      "name": "Verificar Meta (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = $input.first().json.query || {};\nif (query['hub.mode'] === 'subscribe') {\n  return [{ json: { challenge: query['hub.challenge'] } }];\n}\nreturn [{ json: { error: 'No es una verificación de Meta' } }];"
+      },
+      "id": "verify-code",
+      "name": "Retornar Challenge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {}
+      },
+      "id": "responder-meta",
+      "name": "Verificación de Meta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        440,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\ntry {\n  const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];\n  if (!message) return [{ json: { tipo: 'EVENTO_IGNORADO' } }];\n  \n  const tipoMsj = message.type;\n  const isDocument = tipoMsj === 'image' || tipoMsj === 'document';\n  let isInteractive = tipoMsj === 'interactive';\n  \n  if (isInteractive) {\n      const btnId = message.interactive?.button_reply?.id || '';\n      if (btnId === 'BTN_TRAMITE_PROPIO' || btnId === 'BTN_TRAMITE_TERCERO') {\n          return [{ json: { tipo: 'TEXTO', payload: body } }];\n      }\n      return [{ json: { tipo: 'BOTON', payload: body } }];\n  }\n  \n  return [{ json: { tipo: isDocument ? 'DOCUMENTO' : 'TEXTO', payload: body } }];\n} catch(e) {\n  return [{ json: { tipo: 'TEXTO', payload: body } }];\n}"
+      },
+      "id": "clasificador",
+      "name": "Clasificador de Mensajes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.tipo }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "DOCUMENTO",
+              "output": 0
+            },
+            {
+              "value2": "TEXTO",
+              "output": 1
+            },
+            {
+              "value2": "BOTON",
+              "output": 2
+            }
+          ]
+        }
+      },
+      "id": "switch-enrutador",
+      "name": "Enrutador",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/whatsapp-documentos",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "http-mod-4",
+      "name": "Reenviar a Módulo 4 (Docs)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/whatsapp-ingesta",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "http-mod-1",
+      "name": "Reenviar a Módulo 1 (Textos)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        700,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/whatsapp-interactivo",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "http-mod-3",
+      "name": "Reenviar a Módulo 3 (Botones)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        700,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Verificar Meta (GET)": {
+      "main": [
+        [
+          {
+            "node": "Retornar Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retornar Challenge": {
+      "main": [
+        [
+          {
+            "node": "Verificación de Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Principal (Meta)": {
+      "main": [
+        [
+          {
+            "node": "Clasificador de Mensajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificador de Mensajes": {
+      "main": [
+        [
+          {
+            "node": "Enrutador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrutador": {
+      "main": [
+        [
+          {
+            "node": "Reenviar a Módulo 4 (Docs)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reenviar a Módulo 1 (Textos)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reenviar a Módulo 3 (Botones)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

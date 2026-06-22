@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "puntoclinico",
+  "private_key_id": "e84b0a6c45d41f9a8057585f176ed5ec2d7aece8",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC1P0XIIHhOwHbG\nXt45MZcRUe5gX8872ZpDKp0QjJ3ksq2s4R4B2EdtaATE+ik115Fb7wWjoRDvAN+j\niFCISv//PeDE49LpjXkqAALmop48DUO6mapk/li1oqXxRMM99ulp6mmtDKKEqtq6\nqdHjafPvqQwd4d0rDxBgBrEXduXjm9wgIJi5eBKuAgmyMQ+JGqVgY9vVZYYBilLr\ns/C1Qp6rqYJ6ixxySYaTJwwip94d530OHva8oEYsHXkh9zPpct5oYBCC+zREGepR\nJlJvUUnfOlhJEvAANTH0qt2dT005FH+84Mw8rCIm5GPhlpmen2HwqDASV7iKTfPM\nCJxcj9HhAgMBAAECggEAAvhgemEd15yL1cBkP+eyJBSFpYqsaLyuLH+cR1Mmm0La\nWcTuqvUSZpaXzWqUFk/MEAegvge7sU8AWzu2piUkgNhQwKlDIZSx8aBCa+kqUq2c\n+IfgJPuOFJvvwD5yPKe5N4Uh6jYUy7vJDdoOmH16A+lvS2YSK8x5Zjl12X6XUd2K\n8bDQmTsFbJr2cP9nF19mdOwp2UXMm3RJMTdUKfuO7N2mWmo79AonQXgVktzXSpKB\njUci+kQvLWdiTOh8PQ224Kq2SZkv//bAdvAe/AK50jsacknJWOfyTeMwlS9QZxeL\nTbO3vOO83jIN4+0vX2FCSgVvSldwLeus7gHFpLtOyQKBgQDj6c+OXv/SlS+8OqVH\nJfZR7DPW1EiXVWg2bL/BCUq4fkv/yQ+/r97aHQEGmltIpW7zP+hmX4YfGudOmWXn\nTelwjKOqCbR1JNYV8Ze5lCFTtDEM9HEREhpC2is0NOZjFy/o3lNy2v2eBpz1G/Eh\nppw3HshbY1HYzmAP8Ps2j+EStwKBgQDLlT3nEKsahmAdzd62FkW8u4xR5B3qFUaq\nM4HrqiCuTLEfhQG11134WbPWHHYFo+ahsXIX5Sr4clRFKQko9pohfeteS6LZi01D\nC/2xIz3TnbTAv9bft+1bW+4mOEkSjpksQ1+3oLvsEUfjktuBXltwl8eumWWSLmCT\n14xKB5HIJwKBgQCX+dAqepSSImMLW/vcHqdK53uF1FZ3ez8bk5amLQEDV0xsSvFS\ne/7ZaJ/HfGREY/RBBit9IFN6KGF3WvjFrYFtSIrWFtSbjK2pQklPOUSj4TMYFWPT\n40NZsss+a8v45XxQBviUTQzzNCuzkidPrh7a7o7hya/JJ4yM9L8/GeAWrwKBgQDE\nN74IPXqNAEMXttsXaXQhqipeq51hhswrM6XfPIRvOp/lH088sq1xtxOsJJZkbUrX\nQa4T9d9qwtcSKbEYeEaqTTFUG1aEks0O+Dm2R59JnVEgDkbOLfpp+bsZv1o+to5P\nqUhSNmup5iYB5AQJNqavaLsfP94z/Ns8453lpFIQNQKBgFAJFeOlK/5JG2le4liY\nl9i7ri2mAo+je755ydBEIsBmmAWguzeYnZlDeWkstcunLsTVGsrBQuFEcVxOT16a\nGTeT6kKI4PSOL9G6q5raCAXL3H0QeCD+ChKkjhqkTUu1uw78m2MTuuqe53jfi9IP\n8FPCz9QYUf0skkaNU1Ln4/+5\n-----END PRIVATE KEY-----\n",
+  "client_email": "puntoclinico@puntoclinico.iam.gserviceaccount.com",
+  "client_id": "118074072344067526733",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/puntoclinico%40puntoclinico.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

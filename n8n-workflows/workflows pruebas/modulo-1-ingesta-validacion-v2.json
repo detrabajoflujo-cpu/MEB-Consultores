@@ -1,0 +1,471 @@
+{
+  "name": "Módulo I — Ingesta y Validación WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-ingesta",
+        "options": {}
+      },
+      "id": "webhook-entrada",
+      "name": "Webhook WhatsApp Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json.body || $input.first().json;\n\nlet telefono = '';\nlet mensaje = '';\nlet nombre = '';\nlet curp = '';\nlet nss = '';\nlet botonId = '';\n\ntry {\n  const entry = data.entry?.[0];\n  const changes = entry?.changes?.[0];\n  const value = changes?.value;\n  if (value?.messages) {\n    telefono = value.messages[0]?.from || '';\n    nombre = value.contacts?.[0]?.profile?.name || 'Sin nombre';\n    \n    if (value.messages[0]?.type === 'interactive') {\n        botonId = value.messages[0].interactive?.button_reply?.id || '';\n    } else {\n        mensaje = value.messages[0]?.text?.body || '';\n    }\n  } else {\n    throw new Error('Not meta format');\n  }\n} catch(e) {\n  telefono = data.telefono || data.from || '';\n  mensaje = data.mensaje || data.text || '';\n  nombre = data.nombre || data.name || 'Sin nombre';\n  curp = data.curp || data.bordillo || '';\n  nss = data.nss || '';\n}\n\nif (curp && nss && !mensaje.includes(curp)) {\n    mensaje += ` CURP: ${curp} NSS: ${nss} NOMBRE: ${nombre}`;\n}\n\nreturn [{ json: { telefono, mensaje, nombre, botonId, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "extraer-sender",
+      "name": "Extraer SenderID y Mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsear el mensaje para extraer CURP, NSS y datos del prospecto\n// El mensaje de WhatsApp puede venir en formato:\n// CURP: PALR850312MDFLN01 | NSS: 12345678901 | NOMBRE: FERNANDA PALACIOS RIOS\n\nconst { telefono, mensaje, nombre } = $input.first().json;\n\n// Extraer CURP (patrón de 18 caracteres)\nconst curpMatch = mensaje.match(/[A-Z]{1}[AEIOU]{1}[A-Z]{2}\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])[HM]{1}[A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z\\d]{1}\\d{1}/i);\nconst curp = curpMatch ? curpMatch[0].toUpperCase() : '';\n\n// Extraer NSS (11 dígitos)\nconst nssMatch = mensaje.match(/\\b\\d{11}\\b/);\nconst nss = nssMatch ? nssMatch[0] : '';\n\n// Extraer nombre si viene en el mensaje (después de NOMBRE:)\nconst nombreMatch = mensaje.match(/NOMBRE[:\\s]+([A-ZÁÉÍÓÚÑÜ ]+)/i);\nconst nombreExtraido = nombreMatch ? nombreMatch[1].trim() : nombre;\n\nreturn [{ json: {\n  telefono,\n  curp,\n  nss,\n  nombre_completo: nombreExtraido,\n  mensaje_original: mensaje,\n  tiene_curp: curp.length > 0,\n  tiene_nss: nss.length > 0\n} }];"
+      },
+      "id": "parsear-datos",
+      "name": "Parsear CURP y NSS del Mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8080/api/webhook/validar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "curp",
+              "value": "={{ $json.curp }}"
+            },
+            {
+              "name": "nss",
+              "value": "={{ $json.nss }}"
+            },
+            {
+              "name": "telefono",
+              "value": "={{ $json.telefono }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "validar-java",
+      "name": "Validar en Backend Java",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "cond-valido",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-valido",
+      "name": "¿Datos Válidos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8080/api/webhook/n8n/prospecto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "curp",
+              "value": "={{ $('Parsear CURP y NSS del Mensaje').item.json.curp }}"
+            },
+            {
+              "name": "nss",
+              "value": "={{ $('Parsear CURP y NSS del Mensaje').item.json.nss }}"
+            },
+            {
+              "name": "nombre_completo",
+              "value": "={{ $('Parsear CURP y NSS del Mensaje').item.json.nombre_completo }}"
+            },
+            {
+              "name": "telefono",
+              "value": "={{ $('Parsear CURP y NSS del Mensaje').item.json.telefono }}"
+            },
+            {
+              "name": "origen_canal",
+              "value": "Meta Ads"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "registrar-prospecto",
+      "name": "Registrar Prospecto en DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1560,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Parsear CURP y NSS del Mensaje').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"✅ ¡Hola! Tus datos han sido validados correctamente.\\n\\n📋 *CURP:* {{ $('Parsear CURP y NSS del Mensaje').item.json.curp }}\\n🔢 *NSS:* {{ $('Parsear CURP y NSS del Mensaje').item.json.nss }}\\n\\nPara continuar con tu trámite, por favor *envíanos una fotografía legible de tu Hoja Amarilla* (Resolución de Pensión) por este medio. 📸👇\"\n  }\n}",
+        "options": {}
+      },
+      "id": "enviar-confirmacion",
+      "name": "Enviar Confirmación WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1780,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Parsear CURP y NSS del Mensaje').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"❌ Encontramos un detalle con tus datos:\\n\\n{{ $('Validar en Backend Java').item.json.error }}\\n\\nPor favor verifica tu CURP (18 caracteres) y NSS (11 dígitos) y vuelve a enviarlos. ¡Estamos para ayudarte!\"\n  }\n}",
+        "options": {}
+      },
+      "id": "enviar-error",
+      "name": "Notificar Error al Prospecto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "id": "webhook-verify",
+      "name": "Verificar Meta (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        240,
+        100
+      ],
+      "parameters": {
+        "path": "whatsapp-ingesta",
+        "responseMode": "lastNode",
+        "options": {},
+        "httpMethod": "GET"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "code-verify",
+      "name": "Retornar Challenge",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        100
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: { challenge: $input.first().json.query['hub.challenge'] } }];"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.botonId }}",
+        "rules": {
+          "rules": [
+            {
+              "value1": "={{ $json.mensaje }}",
+              "operation": "regex",
+              "value2": "(?i)[A-Z]{4}\\d{6}[HM][A-Z]{5}[0-9A-Z]\\d",
+              "output": 0
+            },
+            {
+              "operation": "equal",
+              "value2": "BTN_TRAMITE_PROPIO",
+              "output": 1
+            },
+            {
+              "operation": "equal",
+              "value2": "BTN_TRAMITE_TERCERO",
+              "output": 1
+            }
+          ]
+        },
+        "fallbackOutput": 2
+      },
+      "id": "if-tiene-datos",
+      "name": "¿Tiene Datos Completos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Extraer SenderID y Mensaje').item.json.telefono }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"✨ ¡Hola {{ $('Extraer SenderID y Mensaje').item.json.nombre }}! Te damos la bienvenida a *MEB Consultores*.*\\n\\nSomos expertos en mejorar y aumentar el monto de tu pensión de forma rápida, segura y 100% legal, respaldados plenamente bajo la *Ley 73 del IMSS*. Nuestro objetivo es asegurar el patrimonio que construiste toda tu vida.\\n\\nPara comenzar a ayudarte de la mejor manera, por favor indícanos:\\n\\n¿Este trámite es para ti o estás ayudando a un familiar/conocido?\"\n    },\n    \"action\": {\n      \"buttons\": [\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"BTN_TRAMITE_PROPIO\",\n            \"title\": \"Es para mí\"\n          }\n        },\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"BTN_TRAMITE_TERCERO\",\n            \"title\": \"Ayudo a alguien\"\n          }\n        }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "enviar-bienvenida",
+      "name": "Enviar Bienvenida WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        960,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/{{$env[\"META_PHONE_ID\"]}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env[\"META_TOKEN\"]}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Extraer SenderID y Mensaje').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"¡Perfecto! Para poder hacer un análisis y proyección sin costo, por favor envíanos los siguientes datos en un solo mensaje:\\n\\n🔹 *Nombre Completo* (de la persona interesada)\\n🔹 *CURP* (18 caracteres)\\n🔹 *NSS* (11 dígitos)\\n\\nUna vez que recibamos estos datos, nuestro sistema verificará la viabilidad de forma automática.\"\n  }\n}",
+        "options": {}
+      },
+      "id": "pedir-curp-nss",
+      "name": "Pedir CURP y NSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        960,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp Entrada": {
+      "main": [
+        [
+          {
+            "node": "Extraer SenderID y Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer SenderID y Mensaje": {
+      "main": [
+        [
+          {
+            "node": "Parsear CURP y NSS del Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear CURP y NSS del Mensaje": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene Datos Completos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar en Backend Java": {
+      "main": [
+        [
+          {
+            "node": "¿Datos Válidos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Datos Válidos?": {
+      "main": [
+        [
+          {
+            "node": "Registrar Prospecto en DB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notificar Error al Prospecto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Prospecto en DB": {
+      "main": [
+        [
+          {
+            "node": "Enviar Confirmación WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Meta (GET)": {
+      "main": [
+        {
+          "node": "Retornar Challenge",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    },
+    "¿Tiene Datos Completos?": {
+      "main": [
+        [
+          {
+            "node": "Validar en Backend Java",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir CURP y NSS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Bienvenida WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "Módulo I"
+    }
+  ]
+}

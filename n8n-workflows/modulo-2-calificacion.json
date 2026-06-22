@@ -1,0 +1,503 @@
+{
+  "name": "Módulo 2: Calificación Financiera",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "modulo2-ingesta",
+        "options": {}
+      },
+      "id": "webhook-ingesta",
+      "name": "Webhook Modulo 2",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.first().json.body || $input.first().json;\nconst payload = inputData.payload;\nconst phone = inputData.phone;\nconst msg = payload.entry[0].changes[0].value.messages[0];\n\nlet mediaId = null;\nlet mediaType = null;\nif (msg.image) {\n    mediaId = msg.image.id;\n    mediaType = 'image';\n} else if (msg.document) {\n    mediaId = msg.document.id;\n    mediaType = 'document';\n}\n\nreturn [{ json: { phone: phone, mediaId: mediaId, mediaType: mediaType, payload: payload } }];"
+      },
+      "id": "extraer-media",
+      "name": "Extraer Media ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "boolean",
+        "value1": "={{ $json.mediaId ? true : false }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": true,
+              "output": 0
+            },
+            {
+              "value2": false,
+              "output": 1
+            }
+          ]
+        }
+      },
+      "id": "switch-media",
+      "name": "¿Tiene Media?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 2').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $json.phone }}\", \"type\": \"text\", \"text\": { \"body\": \"⚠️ Por favor, envíame una *foto clara* (imagen) de tu Resolución de Pensión u Hoja Amarilla. No envíes archivos PDF, asegúrate de tomarle una foto con tu cámara.\" } }"
+      },
+      "id": "alerta-no-media",
+      "name": "Pedir Foto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        600,
+        200
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v17.0/{{$json.mediaId}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi"
+      },
+      "id": "get-media-url",
+      "name": "Obtener URL Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        600,
+        -100
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.url}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-media",
+      "name": "Descargar Archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        800,
+        -100
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const binaryData = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst base64 = binaryData.toString('base64');\nconst mimeType = $input.first().binary.data.mimeType;\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    base64Image: `data:${mimeType};base64,${base64}`\n  },\n  binary: $input.first().binary\n}];"
+      },
+      "id": "convert-base64",
+      "name": "Convertir a Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.curp FROM prospectos p WHERE p.telefono_contacto = '{{ $('Extraer Media ID').first().json.phone }}';"
+      },
+      "id": "get-curp",
+      "name": "Obtener CURP",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        1000,
+        -100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ugn76S3Zqub01cyD",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env[\"OPENAI_API_KEY\"]}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"Extrae de este documento financiero (Resolución de Pensión u Hoja Amarilla):\\n1. Monto de pensión (sólo el número mayor a 0, sin comas ni símbolos).\\n2. Banco detectado (ej. BBVA, BANAMEX, BANORTE, SANTANDER, HSBC, AZTECA, COPPEL). Si no está claro, pon null.\\n3. Retenciones detectadas (sólo el número, si no hay pon 0).\\nDevuelve ÚNICAMENTE un JSON válido con estas claves: \\\"monto_pension\\\" (number), \\\"banco_detectado\\\" (string o null), \\\"retenciones_detectadas\\\" (number).\"\n        },\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"{{ $('Convertir a Base64').first().json.base64Image }}\"\n          }\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 300\n}"
+      },
+      "id": "openai-vision",
+      "name": "OpenAI Vision OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1200,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const contentStr = $input.first().json.choices[0].message.content;\nlet ocr = {};\ntry {\n  const jsonStr = contentStr.replace(/```json/g, '').replace(/```/g, '').trim();\n  ocr = JSON.parse(jsonStr);\n} catch(e) {\n  ocr = { monto_pension: 0, banco_detectado: null, retenciones_detectadas: 0 };\n}\n\nconst monto = ocr.monto_pension || 0;\nconst banco = ocr.banco_detectado ? ocr.banco_detectado.toUpperCase() : '';\nconst retenciones = ocr.retenciones_detectadas || 0;\n\nlet tipoCredito = '';\nlet viable = false;\n\nconst bancosAutorizados = ['BBVA', 'BANAMEX', 'BANORTE', 'SANTANDER', 'HSBC'];\n\nif (monto > 5000 && retenciones === 0) {\n    tipoCredito = 'NOMINA';\n    viable = true;\n} else if (bancosAutorizados.some(b => banco.includes(b))) {\n    tipoCredito = 'DOMICILIADO';\n    viable = true;\n}\n\nreturn [{ json: { monto: monto, banco: banco, retenciones: retenciones, tipoCredito: tipoCredito, viable: viable } }];"
+      },
+      "id": "evaluar-reglas",
+      "name": "Evaluar Reglas Negocio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://backend:8080/api/expedientes/curp/{{ $('Obtener CURP').first().json.curp }}/calificacion",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"montoPension\": {{$json.monto}}, \"institucionBancaria\": \"{{$json.banco}}\", \"tipoCredito\": \"{{$json.tipoCredito}}\", \"retenciones\": {{$json.retenciones}}, \"viable\": {{$json.viable}} }"
+      },
+      "id": "actualizar-backend",
+      "name": "Actualizar Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1600,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "boolean",
+        "value1": "={{ $('Evaluar Reglas Negocio').first().json.viable }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": true,
+              "output": 0
+            },
+            {
+              "value2": false,
+              "output": 1
+            }
+          ]
+        }
+      },
+      "id": "switch-viable",
+      "name": "¿Es Viable?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 2').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Extraer Media ID').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"¡Felicidades! 🎉 Hemos evaluado tu documento y eres APTO para el trámite de aumento de pensión bajo el esquema *{{ $('Evaluar Reglas Negocio').first().json.tipoCredito }}*.\\n\\n¿Desea continuar con el trámite?\"\n    },\n    \"action\": {\n      \"buttons\": [\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"SI_CONTINUAR\",\n            \"title\": \"Sí, continuar\"\n          }\n        },\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"NO_CONTINUAR\",\n            \"title\": \"No, gracias\"\n          }\n        }\n      ]\n    }\n  }\n}"
+      },
+      "id": "msg-apto",
+      "name": "Mensaje Apto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        -200
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 2').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Media ID').first().json.phone }}\", \"type\": \"text\", \"text\": { \"body\": \"Lamentablemente, tras revisar tu documento, determinamos que tu perfil no cumple con los requisitos mínimos para el trámite en este momento. Agradecemos mucho tu tiempo e interés en Meb Consultores.\" } }"
+      },
+      "id": "msg-no-apto",
+      "name": "Mensaje No Apto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        0
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE bot_sessions SET current_module = 'MODULO_3', current_step = 'ESPERANDO_RESPUESTA_CONTINUAR', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Media ID').first().json.phone }}';"
+      },
+      "id": "db-modulo3",
+      "name": "Avanzar a Módulo 3",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        2200,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ugn76S3Zqub01cyD",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=DELETE FROM bot_sessions WHERE phone_number = '{{ $('Extraer Media ID').first().json.phone }}';"
+      },
+      "id": "db-descartado",
+      "name": "Borrar Sesión (Descartado)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        2200,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ugn76S3Zqub01cyD",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Modulo 2": {
+      "main": [
+        [
+          {
+            "node": "Extraer Media ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Media ID": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene Media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene Media?": {
+      "main": [
+        [
+          {
+            "node": "Obtener URL Media",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir Foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener URL Media": {
+      "main": [
+        [
+          {
+            "node": "Descargar Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar Archivo": {
+      "main": [
+        [
+          {
+            "node": "Convertir a Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convertir a Base64": {
+      "main": [
+        [
+          {
+            "node": "Obtener CURP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener CURP": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Vision OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Vision OCR": {
+      "main": [
+        [
+          {
+            "node": "Evaluar Reglas Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluar Reglas Negocio": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Backend": {
+      "main": [
+        [
+          {
+            "node": "¿Es Viable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Viable?": {
+      "main": [
+        [
+          {
+            "node": "Mensaje Apto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensaje No Apto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensaje Apto": {
+      "main": [
+        [
+          {
+            "node": "Avanzar a Módulo 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensaje No Apto": {
+      "main": [
+        [
+          {
+            "node": "Borrar Sesión (Descartado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

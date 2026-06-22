@@ -1,0 +1,402 @@
+{
+  "name": "Módulo II — OCR Hoja Amarilla y Calificación Financiera",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerOn": "specificFolder",
+        "folderToWatch": "={{ $env.GOOGLE_DRIVE_FOLDER_ID }}",
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "drive-trigger",
+      "name": "Google Drive — Nueva Imagen",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtrar solo imágenes y PDFs válidos\nconst archivo = $input.first().json;\nconst nombre = archivo.name || '';\nconst esValido = /\\.(jpg|jpeg|png|pdf)$/i.test(nombre);\nconst esHojaAmarilla = nombre.toLowerCase().includes('pension') || \n                       nombre.toLowerCase().includes('amarilla') ||\n                       nombre.toLowerCase().includes('imss') ||\n                       nombre.toLowerCase().includes('resolucion');\n\nif (!esValido) {\n  return [];\n}\n\n// Extraer el teléfono del nombre (ej: RESOLUCION_PENSION_529613309389.jpg)\nlet telefono = '';\nconst partes = nombre.split('_');\nif (partes.length > 1) {\n  telefono = partes[partes.length - 1].split('.')[0];\n}\n\nreturn [{ json: { ...archivo, es_hoja_amarilla: esHojaAmarilla, telefono: telefono } }];"
+      },
+      "id": "filtrar-imagenes",
+      "name": "Filtrar Imágenes Válidas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "id": "split-batch",
+      "name": "Split en Lotes de 10",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": "={{ $json.id }}"
+      },
+      "id": "descargar-imagen",
+      "name": "Descargar Imagen de Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8080/api/ocr/hoja-amarilla",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "imagen",
+              "value": "={{ $binary.data }}",
+              "parameterType": "formBinaryData"
+            },
+            {
+              "name": "curp",
+              "value": "={{ $json.curp || 'DESCONOCIDO' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ocr-hoja-amarilla",
+      "name": "OCR — Extraer 6 Variables Hoja Amarilla",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.perfilCalificacion }}",
+              "rightValue": "NO_APTO",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-no-apto",
+      "name": "¿Es NO APTO?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Filtrar Imágenes Válidas').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"Estimado/a {{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.nombreCompleto || 'prospecto' }},\\n\\nDespués de revisar su información, en este momento su perfil no cumple los requisitos para el trámite de incremento de pensión.\\n\\nEl banco registrado en su resolución ({{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.institucionBancaria }}) no se encuentra entre los autorizados para este proceso.\\n\\nLe agradecemos su interés y quedamos a sus órdenes para cualquier duda.\" }\n}",
+        "options": {}
+      },
+      "id": "notificar-no-apto",
+      "name": "Notificar NO APTO — Banco no autorizado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1560,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.perfilCalificacion }}",
+              "rightValue": "NOMINA",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-nomina",
+      "name": "¿Es Perfil NÓMINA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": "={{ $env.GOOGLE_SHEETS_ID }}",
+        "sheetName": "Base Nómina",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Nombre": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.nombreCompleto }}",
+            "CURP": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.curp }}",
+            "NSS": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.nss }}",
+            "Monto Pensión": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.montoPensionActual }}",
+            "Banco": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.institucionBancaria }}",
+            "Retenciones": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.tieneRetenciones }}",
+            "Perfil": "NOMINA",
+            "Fecha OCR": "={{ new Date().toLocaleDateString('es-MX') }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "registrar-nomina",
+      "name": "Registrar en Base NÓMINA",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1780,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": "={{ $env.GOOGLE_SHEETS_DOMICILIADO_ID }}",
+        "sheetName": "Base Domiciliado Enriquecida",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Nombre": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.nombreCompleto }}",
+            "CURP": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.curp }}",
+            "NSS": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.nss }}",
+            "Banco": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.institucionBancaria }}",
+            "Monto Pensión": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.montoPensionActual }}",
+            "Retenciones": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.tieneRetenciones }}",
+            "Resultado OCR": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.confianzaOcr }}",
+            "Banco Autorizado": "={{ $('OCR — Extraer 6 Variables Hoja Amarilla').item.json.bancoAutorizado }}",
+            "Perfil": "DOMICILIADO",
+            "Fecha OCR": "={{ new Date().toLocaleDateString('es-MX') }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "registrar-domiciliado",
+      "name": "Registrar en Base DOMICILIADO Enriquecida",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1780,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Filtrar Imǭgenes Vǭlidas').item.json.telefono }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"Tu Hoja Amarilla ha sido procesada con éxito y cumples con el perfil para un incremento de pensión. ✅\\n\\n¿Te gustaría recibir una llamada de nuestro equipo para aclarar tus dudas y explicarte cómo funciona?\"\n    },\n    \"action\": {\n      \"buttons\": [\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"BTN_LLAMADA_SI\",\n            \"title\": \"Sí, llamar 📞\"\n          }\n        },\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"BTN_LLAMADA_NO\",\n            \"title\": \"No, seguir aquí 💬\"\n          }\n        }\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "enviar-btn-llamada",
+      "name": "Preguntar por Llamada (Botones)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2400,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Google Drive — Nueva Imagen": {
+      "main": [
+        [
+          {
+            "node": "Filtrar Imágenes Válidas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar Imágenes Válidas": {
+      "main": [
+        [
+          {
+            "node": "Split en Lotes de 10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split en Lotes de 10": {
+      "main": [
+        [
+          {
+            "node": "Descargar Imagen de Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar Imagen de Drive": {
+      "main": [
+        [
+          {
+            "node": "OCR — Extraer 6 Variables Hoja Amarilla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR — Extraer 6 Variables Hoja Amarilla": {
+      "main": [
+        [
+          {
+            "node": "¿Es NO APTO?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es NO APTO?": {
+      "main": [
+        [
+          {
+            "node": "Notificar NO APTO — Banco no autorizado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Es Perfil NÓMINA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Perfil NÓMINA?": {
+      "main": [
+        [
+          {
+            "node": "Registrar en Base NÓMINA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar en Base DOMICILIADO Enriquecida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar en Base NMINA": {
+      "main": [
+        [
+          {
+            "node": "Preguntar por Llamada (Botones)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar en Base DOMICILIADO Enriquecida": {
+      "main": [
+        [
+          {
+            "node": "Preguntar por Llamada (Botones)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "Módulo II"
+    }
+  ]
+}

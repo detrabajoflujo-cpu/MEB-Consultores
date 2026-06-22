@@ -1,0 +1,229 @@
+{
+  "name": "Módulo 0: Enrutador Maestro (State Machine)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orquestador-central",
+        "options": {}
+      },
+      "id": "webhook-orquestador",
+      "name": "Webhook Orquestador",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json.body || $input.first().json;\n\n// payload esperado:\n// {\n//   \"modulo_origen\": \"MODULO_1\" | \"MODULO_2\" | \"MODULO_3\" | \"MODULO_4\",\n//   \"descarte\": false,\n//   \"motivo_descarte\": \"\",\n//   \"datos\": {}\n// }\n\nlet estado_nuevo = \"\";\nlet disparar_modulo = \"NINGUNO\";\n\nif (payload.descarte === true) {\n    estado_nuevo = \"Descartado\";\n    disparar_modulo = \"NINGUNO\";\n} else {\n    switch(payload.modulo_origen) {\n        case \"MODULO_1\":\n            // Confirmación de Captura -> Pasa a pedir Hoja Amarilla\n            estado_nuevo = \"Evaluando Hoja Amarilla\";\n            disparar_modulo = \"MODULO_2\";\n            break;\n        case \"MODULO_2\":\n            // Recibe Tipo_Credito -> Pasa a llamada de IA\n            estado_nuevo = \"En Asignación/Llamada\";\n            disparar_modulo = \"MODULO_3\";\n            break;\n        case \"MODULO_3\":\n            // Agendó Cita -> Espera Documentos\n            estado_nuevo = \"Esperando Documentos\";\n            disparar_modulo = \"MODULO_4\";\n            break;\n        case \"MODULO_4\":\n            // Documentación 100% Validada -> Pasa a Empaquetado\n            estado_nuevo = \"Documentación Aprobada\";\n            disparar_modulo = \"MODULO_5\";\n            break;\n        default:\n            estado_nuevo = \"Prospecto Nuevo\";\n            break;\n    }\n}\n\nreturn [{\n    json: {\n        ...payload,\n        estado_nuevo: estado_nuevo,\n        disparar_modulo: disparar_modulo,\n        timestamp: new Date().toISOString()\n    }\n}];"
+      },
+      "id": "state-machine",
+      "name": "State Machine (Control de Estados)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/api/expedientes/actualizar-estado",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"estado\": \"{{ $json.estado_nuevo }}\",\n  \"motivo_descarte\": \"{{ $json.motivo_descarte || '' }}\",\n  \"datos\": {{ JSON.stringify($json.datos || {}) }}\n}",
+        "options": {}
+      },
+      "id": "actualizar-backend",
+      "name": "Actualizar Backend / Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        440,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Notifica al Backend Java / Frontend React"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.disparar_modulo }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "MODULO_2",
+              "output": 0
+            },
+            {
+              "value2": "MODULO_3",
+              "output": 1
+            },
+            {
+              "value2": "MODULO_4",
+              "output": 2
+            },
+            {
+              "value2": "MODULO_5",
+              "output": 3
+            }
+          ]
+        }
+      },
+      "id": "router-modulos",
+      "name": "Router de Módulos",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo2-inicio",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "trigger-mod2",
+      "name": "Disparar Módulo II",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        960,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo3-inicio",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "trigger-mod3",
+      "name": "Disparar Módulo III",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        960,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo4-habilitar",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "trigger-mod4",
+      "name": "Habilitar Módulo IV (Docs)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo5-inicio",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "trigger-mod5",
+      "name": "Disparar Módulo V (Empaquetado)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        960,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Orquestador": {
+      "main": [
+        [
+          {
+            "node": "State Machine (Control de Estados)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State Machine (Control de Estados)": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Backend / Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Backend / Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Router de Módulos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router de Módulos": {
+      "main": [
+        [
+          {
+            "node": "Disparar Módulo II",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Disparar Módulo III",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Habilitar Módulo IV (Docs)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Disparar Módulo V (Empaquetado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

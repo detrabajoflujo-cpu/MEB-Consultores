@@ -1,0 +1,587 @@
+{
+  "name": "Módulo 1: Captación y Triaje (Stateless)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "modulo1-ingesta",
+        "options": {}
+      },
+      "id": "webhook-entrada",
+      "name": "Webhook Modulo 1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.current_step }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "NUEVO_LEAD",
+              "output": 0
+            },
+            {
+              "value2": "ESPERANDO_BOTON",
+              "output": 1
+            },
+            {
+              "value2": "ESPERANDO_DATOS",
+              "output": 2
+            }
+          ]
+        }
+      },
+      "id": "switch-estado",
+      "name": "Switch Paso Actual",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Webhook Modulo 1').first().json.body.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"✨ ¡Hola {{ $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.contacts[0].profile.name }}! Te damos la bienvenida a *Meb Consultores*\\n\\nSomos expertos en mejorar y aumentar el monto de tu pensión de forma rápida, segura y 100% legal.\\n\\n¿Este trámite es para ti o estás ayudando a un familiar/conocido?\"\n    },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"PARA_MI\", \"title\": \"Es para mí\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"PARA_TERCERO\", \"title\": \"Ayudo a alguien\" } }\n      ]\n    }\n  }\n}"
+      },
+      "id": "enviar-bienvenida",
+      "name": "Enviar Bienvenida",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        560,
+        -200
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO bot_sessions (phone_number, current_module, current_step, updated_at) VALUES ('{{ $('Webhook Modulo 1').first().json.body.phone }}', 'MODULO_1', 'ESPERANDO_BOTON', NOW()) ON CONFLICT (phone_number) DO UPDATE SET current_module = 'MODULO_1', current_step = 'ESPERANDO_BOTON', updated_at = NOW();",
+        "options": {}
+      },
+      "id": "db-update-boton",
+      "name": "Actualizar DB (ESPERANDO_BOTON)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        800,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ugn76S3Zqub01cyD",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.messages[0];\nconst btnId = msg.interactive?.button_reply?.id || '';\nreturn [{ json: { btnId: btnId } }];"
+      },
+      "id": "extraer-boton",
+      "name": "Extraer Botón",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.btnId }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "PARA_MI",
+              "output": 0
+            },
+            {
+              "value2": "PARA_TERCERO",
+              "output": 1
+            }
+          ]
+        }
+      },
+      "id": "switch-clasificacion",
+      "name": "Switch Respuesta Botón",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Webhook Modulo 1').first().json.body.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"¡Excelente! Para comenzar con tu evaluación gratuita, por favor envíame en un solo mensaje tus siguientes datos:\\n\\n👤 *Nombre Completo*\\n🔢 *NSS* (11 dígitos)\\n🪪 *CURP* (18 caracteres)\\n\\n*(Ejemplo: Juan Pérez López, 12345678901, PELJ800101HDFRXY09)*\"\n  }\n}"
+      },
+      "id": "pedir-datos-propios",
+      "name": "Pedir Datos Propios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1040,
+        -100
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Webhook Modulo 1').first().json.body.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"¡Perfecto! Para poder evaluar el caso, por favor envíame en un solo mensaje los datos del titular:\\n\\n👤 *Nombre Completo del Titular*\\n🔢 *NSS* (11 dígitos)\\n🪪 *CURP* (18 caracteres)\\n📱 *Su Número de Teléfono*\"\n  }\n}"
+      },
+      "id": "pedir-datos-tercero",
+      "name": "Pedir Datos Tercero",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1040,
+        100
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE bot_sessions SET current_step = 'ESPERANDO_DATOS', updated_at = NOW() WHERE phone_number = '{{ $('Webhook Modulo 1').first().json.body.phone }}';",
+        "options": {}
+      },
+      "id": "db-update-datos",
+      "name": "Actualizar DB (ESPERANDO_DATOS)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        1300,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ugn76S3Zqub01cyD",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.messages[0];\nconst msjText = msg.text?.body || '';\nconst fromPhone = $('Webhook Modulo 1').first().json.body.phone;\n\nconst nssMatch = msjText.match(/\\b\\d{11}\\b/);\nconst curpMatch = msjText.match(/\\b[A-Z0-9]{18}\\b/i);\nconst telMatch = msjText.match(/\\b\\d{10}\\b/);\n\nlet nss = nssMatch ? nssMatch[0] : null;\nlet curp = curpMatch ? curpMatch[0].toUpperCase() : null;\nlet telTitular = telMatch ? telMatch[0] : fromPhone;\n\nlet lines = msjText.split('\\n');\nlet nameLine = lines.find(line => !line.match(/\\b\\d{11}\\b/) && !line.match(/\\b[A-Z0-9]{18}\\b/i) && line.trim().length > 3);\nlet nombreCompleto = nameLine ? nameLine.trim() : \"Por Definir\";\n\nconst valido = (nss !== null && curp !== null);\n\nreturn [{ json: { es_valido: valido, nss: nss, curp: curp, telefono_titular: telTitular, telefono_contacto: fromPhone, nombre_completo: nombreCompleto } }];"
+      },
+      "id": "extraer-validar-datos",
+      "name": "Extraer y Validar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "boolean",
+        "value1": "={{ $json.es_valido }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": true,
+              "output": 0
+            },
+            {
+              "value2": false,
+              "output": 1
+            }
+          ]
+        }
+      },
+      "id": "switch-validacion",
+      "name": "Validación OK?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Webhook Modulo 1').first().json.body.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"⚠️ Parece que hay un error. Verifica que el *NSS* tenga 11 números y la *CURP* 18 caracteres. Intenta enviarlos nuevamente.\"\n  }\n}"
+      },
+      "id": "alerta-invalido",
+      "name": "Alerta Datos Inválidos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1040,
+        300
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://backend:8080/api/expedientes/curp/{{$json.curp}}",
+        "sendQuery": false,
+        "queryParameters": {},
+        "options": {
+          "ignoreResponseCode": true
+        }
+      },
+      "id": "java-search",
+      "name": "Búsqueda en Java DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1040,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "boolean",
+        "value1": "={{ $json.id ? true : false }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": true,
+              "output": 0
+            },
+            {
+              "value2": false,
+              "output": 1
+            }
+          ]
+        }
+      },
+      "id": "switch-existe-db",
+      "name": "¿Existe en DB?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Webhook Modulo 1').first().json.body.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"✅ ¡Hola de nuevo! Veo en nuestro sistema que este trámite ya se encuentra en proceso. Un asesor se pondrá en contacto pronto.\"\n  }\n}"
+      },
+      "id": "alerta-ya-existe",
+      "name": "Alerta Ya Existe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1480,
+        50
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8080/api/expedientes/prospectos",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"nombreCompleto\": \"{{ $('Extraer y Validar').first().json.nombre_completo }}\",\n  \"curp\": \"{{ $('Extraer y Validar').first().json.curp }}\",\n  \"nss\": \"{{ $('Extraer y Validar').first().json.nss }}\",\n  \"telefonoContacto\": \"{{ $('Extraer y Validar').first().json.telefono_contacto }}\",\n  \"origenCanal\": \"WhatsApp (n8n)\"\n}",
+        "options": {}
+      },
+      "id": "java-create",
+      "name": "Crear Expediente Java",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Webhook Modulo 1').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Webhook Modulo 1').first().json.body.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"¡Excelente! Tus datos han sido validados y tu expediente ha sido creado correctamente en nuestro sistema.\\n\\nPara poder evaluar tu caso de forma gratuita y ver cuánto podemos aumentar tu pensión, por favor envíame aquí mismo una foto clara o documento PDF de tu *Resolución de Pensión* (la hoja amarilla) o tu *Constancia de Semanas Cotizadas*.\"\n  }\n}"
+      },
+      "id": "pedir-hoja-amarilla",
+      "name": "Pedir Hoja Amarilla",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1700,
+        200
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE bot_sessions SET current_module = 'MODULO_2', current_step = 'ESPERANDO_HOJA_AMARILLA', updated_at = NOW() WHERE phone_number = '{{ $('Webhook Modulo 1').first().json.body.phone }}';",
+        "options": {}
+      },
+      "id": "db-update-final",
+      "name": "Actualizar DB (MODULO_2)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        1920,
+        200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ugn76S3Zqub01cyD",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Modulo 1": {
+      "main": [
+        [
+          {
+            "node": "Switch Paso Actual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Paso Actual": {
+      "main": [
+        [
+          {
+            "node": "Enviar Bienvenida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extraer Botón",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extraer y Validar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Bienvenida": {
+      "main": [
+        [
+          {
+            "node": "Actualizar DB (ESPERANDO_BOTON)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Botón": {
+      "main": [
+        [
+          {
+            "node": "Switch Respuesta Botón",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Respuesta Botón": {
+      "main": [
+        [
+          {
+            "node": "Pedir Datos Propios",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir Datos Tercero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir Datos Propios": {
+      "main": [
+        [
+          {
+            "node": "Actualizar DB (ESPERANDO_DATOS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir Datos Tercero": {
+      "main": [
+        [
+          {
+            "node": "Actualizar DB (ESPERANDO_DATOS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer y Validar": {
+      "main": [
+        [
+          {
+            "node": "Validación OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validación OK?": {
+      "main": [
+        [
+          {
+            "node": "Búsqueda en Java DB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alerta Datos Inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Búsqueda en Java DB": {
+      "main": [
+        [
+          {
+            "node": "¿Existe en DB?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Existe en DB?": {
+      "main": [
+        [
+          {
+            "node": "Alerta Ya Existe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear Expediente Java",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Expediente Java": {
+      "main": [
+        [
+          {
+            "node": "Pedir Hoja Amarilla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir Hoja Amarilla": {
+      "main": [
+        [
+          {
+            "node": "Actualizar DB (MODULO_2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

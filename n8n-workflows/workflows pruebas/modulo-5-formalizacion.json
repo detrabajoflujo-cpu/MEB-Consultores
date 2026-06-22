@@ -1,0 +1,108 @@
+{
+  "name": "Módulo V — Formalización y Aprobación del Superior",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "expediente-completo",
+        "options": {}
+      },
+      "id": "trigger-aprobacion",
+      "name": "Trigger — Expediente Completo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://backend:8080/api/expedientes/{{ $json.expediente_id }}",
+        "options": {}
+      },
+      "id": "obtener-expediente",
+      "name": "Obtener Expediente Completo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const exp = $input.first().json;\nconst prospecto = exp.prospecto;\n\n// Construir resumen del expediente para el Superior\nconst docs = [\n  { nombre: 'INE Ambos Lados', estado: exp.ineAmbosLados },\n  { nombre: 'Comprobante Domicilio', estado: exp.comprobanteDomicilio },\n  { nombre: 'Resolución Pensión', estado: exp.resolucionPension },\n  { nombre: 'Estados de Cuenta', estado: exp.estadosCuenta },\n  { nombre: 'Foto con INE', estado: exp.fotoConIne }\n];\n\nconst resumenDocs = docs.map(d => `${d.estado === 'APROBADO' ? '✅' : '❌'} ${d.nombre}`).join('\\n');\n\nreturn [{ json: {\n  resumen: resumenDocs,\n  nombre: prospecto.nombreCompleto,\n  curp: prospecto.curp,\n  monto: exp.montoPensionActual,\n  banco: exp.institucionBancaria,\n  clabe: exp.cuentaClabe,\n  url_drive: exp.urlCarpetaDrive,\n  expediente_id: exp.id,\n  todos_aprobados: docs.every(d => d.estado === 'APROBADO')\n} }];"
+      },
+      "id": "preparar-notificacion",
+      "name": "Preparar Notificación al Superior",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $env.SUPERIOR_TELEFONO }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"🔔 *EXPEDIENTE PARA REVISIÓN*\\n\\n👤 *Prospecto:* {{ $json.nombre }}\\n🆔 *CURP:* {{ $json.curp }}\\n💰 *Pensión:* ${{ $json.monto }} MXN\\n🏦 *Banco:* {{ $json.banco }}\\n\\n*Documentos:*\\n{{ $json.resumen }}\\n\\n📁 *Drive:* {{ $json.url_drive }}\\n\\n✍️ Para aprobar, ingresa al dashboard:\\nhttp://localhost:5173/aprobacion/{{ $json.expediente_id }}\" }\n}",
+        "options": {}
+      },
+      "id": "notificar-superior",
+      "name": "Notificar al Superior (WhatsApp)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aprobacion-manual",
+        "options": {}
+      },
+      "id": "webhook-aprobacion",
+      "name": "Webhook — Aprobación Manual",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://backend:8080/api/expedientes/{{ $json.expediente_id }}/aprobar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{"name": "Content-Type", "value": "application/json"}]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"aprobado_por\": \"{{ $json.aprobado_por }}\" }",
+        "options": {}
+      },
+      "id": "aprobar-en-db",
+      "name": "Aprobar en Base de Datos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 560]
+    }
+  ],
+  "connections": {
+    "Trigger — Expediente Completo": {
+      "main": [[{"node": "Obtener Expediente Completo", "type": "main", "index": 0}]]
+    },
+    "Obtener Expediente Completo": {
+      "main": [[{"node": "Preparar Notificación al Superior", "type": "main", "index": 0}]]
+    },
+    "Preparar Notificación al Superior": {
+      "main": [[{"node": "Notificar al Superior (WhatsApp)", "type": "main", "index": 0}]]
+    },
+    "Webhook — Aprobación Manual": {
+      "main": [[{"node": "Aprobar en Base de Datos", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Módulo V"}]
+}

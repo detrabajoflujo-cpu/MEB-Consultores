@@ -1,0 +1,171 @@
+{
+  "name": "Enrutador de Botones Interactivos WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-interactivo",
+        "options": {}
+      },
+      "id": "webhook-botones",
+      "name": "Webhook Botones Interactivos",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nlet telefono = '';\nlet btnId = '';\nlet nombre = '';\n\ntry {\n  const entry = data.entry[0];\n  const changes = entry.changes[0];\n  const value = changes.value;\n  \n  telefono = value.messages[0].from;\n  nombre = value.contacts?.[0]?.profile?.name || 'Prospecto';\n  btnId = value.messages[0].interactive.button_reply.id;\n} catch(e) {\n  throw new Error('No es un payload interactivo válido');\n}\n\nreturn [{ json: { telefono, nombre, boton_presionado: btnId } }];"
+      },
+      "id": "extraer-boton",
+      "name": "Extraer Botón Presionado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.boton_presionado }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "BTN_LLAMADA_SI",
+              "outputKey": "SI"
+            },
+            {
+              "value2": "BTN_LLAMADA_NO",
+              "outputKey": "NO"
+            }
+          ]
+        }
+      },
+      "id": "switch-opcion",
+      "name": "Switch: ¿Quiere Llamada?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"¡Perfecto! Un asesor de *Punto Clínico* se comunicará contigo en breve para explicarte todos los detalles y resolver tus dudas. 📞👨‍💼\"\n  }\n}",
+        "options": {}
+      },
+      "id": "respuesta-si",
+      "name": "Confirmar Llamada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        900,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"¡Entendido! Preferimos seguir por chat. 💬\\n\\nPara avanzar con tu trámite y formalizar tu expediente, necesitamos que nos envíes los siguientes documentos legibles:\\n\\n1️⃣ *Identificación Oficial (INE)* (ambos lados)\\n2️⃣ *Estado de Cuenta Reciente*\\n\\nPor favor envíalos por aquí mismo. ¡Quedamos atentos!\"\n  }\n}",
+        "options": {}
+      },
+      "id": "respuesta-no",
+      "name": "Pedir Documentos por Chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        900,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Botones Interactivos": {
+      "main": [
+        [
+          {
+            "node": "Extraer Botón Presionado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Botón Presionado": {
+      "main": [
+        [
+          {
+            "node": "Switch: ¿Quiere Llamada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: ¿Quiere Llamada?": {
+      "main": [
+        [
+          {
+            "node": "Confirmar Llamada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedir Documentos por Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "Módulo III"
+    }
+  ]
+}

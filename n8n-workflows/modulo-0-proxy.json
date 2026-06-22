@@ -1,0 +1,273 @@
+{
+  "name": "Módulo 0: Enrutador Maestro (State Machine)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp-entrada-principal",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-get-verify",
+      "name": "Verificación Meta (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {}
+      },
+      "id": "respond-verify",
+      "name": "Responder Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-entrada-principal",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-post-messages",
+      "name": "Recibir Mensajes Meta (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\ntry {\n  const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];\n  if (!message) return []; // Detener el flujo si es una notificacin de estado (ledo, entregado)\n  \n  let fromPhone = message.from || '';\n  if (fromPhone.startsWith('521') && fromPhone.length === 13) {\n      fromPhone = fromPhone.replace(/^521/, '52');\n  }\n  return [{ json: { phone: fromPhone, payload: body } }];\n} catch(e) {\n  return [{ json: { error: e.message } }];\n}"
+      },
+      "id": "limpiar-datos",
+      "name": "Limpiar Número",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT current_module, current_step FROM bot_sessions WHERE phone_number = '{{ $json.phone }}';",
+        "options": {}
+      },
+      "id": "postgres-query",
+      "name": "Consultar Estado en DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        460,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "ugn76S3Zqub01cyD",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const phone = $('Limpiar Número').first().json.phone;\nconst payload = $('Limpiar Número').first().json.payload;\nconst dbResult = $input.first().json;\n\nlet current_module = 'MODULO_1';\nlet current_step = 'NUEVO_LEAD';\n\nif (dbResult && dbResult.current_module) {\n    current_module = dbResult.current_module;\n    current_step = dbResult.current_step;\n}\n\nreturn [{ json: { phone: phone, current_module: current_module, current_step: current_step, payload: payload } }];"
+      },
+      "id": "determinar-estado",
+      "name": "Determinar Estado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.current_module }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "MODULO_1",
+              "output": 0
+            },
+            {
+              "value2": "MODULO_2",
+              "output": 1
+            },
+            {
+              "value2": "MODULO_3",
+              "output": 2
+            },
+            {
+              "value2": "MODULO_4",
+              "output": 3
+            }
+          ]
+        }
+      },
+      "id": "switch-modulos",
+      "name": "Enrutador Principal",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo1-ingesta",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: $json.phone, current_step: $json.current_step, payload: $json.payload } }}",
+        "options": {}
+      },
+      "id": "http-mod1",
+      "name": "Lanzar Módulo 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1200,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo2-ingesta",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: $json.phone, current_step: $json.current_step, payload: $json.payload } }}",
+        "options": {}
+      },
+      "id": "http-mod2",
+      "name": "Lanzar Módulo 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo3-ingesta",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: $json.phone, current_step: $json.current_step, payload: $json.payload } }}",
+        "options": {}
+      },
+      "id": "http-mod3",
+      "name": "Lanzar Módulo 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1200,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Verificación Meta (GET)": {
+      "main": [
+        [
+          {
+            "node": "Responder Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recibir Mensajes Meta (POST)": {
+      "main": [
+        [
+          {
+            "node": "Limpiar Número",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar Número": {
+      "main": [
+        [
+          {
+            "node": "Consultar Estado en DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Estado en DB": {
+      "main": [
+        [
+          {
+            "node": "Determinar Estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determinar Estado": {
+      "main": [
+        [
+          {
+            "node": "Enrutador Principal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrutador Principal": {
+      "main": [
+        [
+          {
+            "node": "Lanzar Módulo 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lanzar Módulo 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lanzar Módulo 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,253 @@
+{
+  "name": "Módulo IV — Auditoría Documental e Incidencias",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-documentos",
+        "options": {}
+      },
+      "id": "webhook-documentos",
+      "name": "Webhook — Documentos WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json.body || $input.first().json || {};\n\nlet telefono = '';\nlet tipo = '';\nlet mediaId = '';\nlet mimeType = '';\nlet caption = '';\n\ntry {\n  const entry = data.entry?.[0];\n  const changes = entry?.changes?.[0];\n  const value = changes?.value;\n  if (value?.messages && value.messages.length > 0) {\n    const message = value.messages[0];\n    telefono = message.from || '';\n    tipo = message.type || '';\n    \n    if (tipo === 'image') {\n      mediaId = message.image?.id || '';\n      mimeType = message.image?.mime_type || 'image/jpeg';\n      caption = message.image?.caption || '';\n    } else if (tipo === 'document') {\n      mediaId = message.document?.id || '';\n      mimeType = message.document?.mime_type || 'application/pdf';\n      caption = message.document?.caption || '';\n    }\n    if (!caption) caption = message.text?.body || '';\n  }\n} catch(e) {\n  // Fallback\n  telefono = data.telefono || data.from || '';\n  tipo = data.tipo || data.type || '';\n}\n\n// FIX PARA MÉXICO: WhatsApp Cloud API manda '521' pero requiere '52' para responder\nif (telefono.startsWith('521') && telefono.length === 13) {\n  telefono = telefono.replace(/^521/, '52');\n}\n\nconst tieneDocumento = ['image', 'document'].includes(tipo) || mediaId !== '';\nconst capLower = caption.toLowerCase();\n\nlet tipoDoc = 'OTRO';\nif (capLower.includes('ine') || capLower.includes('identificacion') || capLower.includes('credencial')) {\n  tipoDoc = 'INE';\n} else if (capLower.includes('domicilio') || capLower.includes('cfe') || capLower.includes('comprobante') || capLower.includes('luz') || capLower.includes('agua')) {\n  tipoDoc = 'COMPROBANTE_DOMICILIO';\n} else if (capLower.includes('pension') || capLower.includes('imss') || capLower.includes('resolucion') || capLower.includes('amarilla')) {\n  tipoDoc = 'RESOLUCION_PENSION';\n} else if (capLower.includes('resumen') || capLower.includes('movimientos')) {\n  tipoDoc = 'RESUMEN_MOVIMIENTOS';\n} else if (capLower.includes('estado') || capLower.includes('cuenta') || capLower.includes('banco')) {\n  tipoDoc = 'ESTADO_CUENTA';\n} else if (capLower.includes('foto') || capLower.includes('selfie') || capLower.includes('sosteniendo')) {\n  tipoDoc = 'FOTO_INE';\n}\n\n// Si logramos extraer aunque sea el mediaId pero no el tipo, forzamos que tiene documento\nreturn [{ json: { telefono, mediaId, mimeType, tipoDoc, caption, tieneDocumento, rawTipo: tipo } }];"
+      },
+      "id": "procesar-media",
+      "name": "Identificar Tipo de Documento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.tieneDocumento }}",
+              "rightValue": true,
+              "operator": {"type": "boolean", "operation": "equals"}
+            }
+          ]
+        }
+      },
+      "id": "if-documento",
+      "name": "¿Es un Documento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Identificar Tipo de Documento').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"Por favor envíe un documento o imagen para que podamos validar su expediente.\\n\\n📋 Recuerde enviar el nombre del documento en el mensaje, por ejemplo:\\n• *INE*\\n• *Comprobante de domicilio*\\n• *Estado de cuenta*\\n• *Resumen de movimientos*\\n• *Resolución de pensión*\" }\n}",
+        "options": {}
+      },
+      "id": "pedir-documento",
+      "name": "Solicitar Documento al Prospecto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.mediaId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "obtener-url-media",
+      "name": "Obtener URL del Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 180]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"}
+          ]
+        },
+        "options": {"response": {"response": {"responseFormat": "file"}}}
+      },
+      "id": "descargar-media",
+      "name": "Descargar Documento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8080/api/ocr/validar-documento",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {"name": "imagen", "value": "={{ $binary.data }}", "parameterType": "formBinaryData"},
+            {"name": "tipo", "value": "={{ $('Identificar Tipo de Documento').item.json.tipoDoc }}"},
+            {"name": "telefono", "value": "={{ $('Identificar Tipo de Documento').item.json.telefono }}"},
+            {"name": "carpeta_id", "value": "={{ $env.GOOGLE_DRIVE_FOLDER_ID }}"}
+          ]
+        },
+        "options": {"timeout": 30000}
+      },
+      "id": "validar-ocr",
+      "name": "Validar con OCR Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 180]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.estado }}",
+              "rightValue": "APROBADO",
+              "operator": {"type": "string", "operation": "equals"}
+            }
+          ]
+        }
+      },
+      "id": "if-aprobado",
+      "name": "¿Documento Aprobado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================================================================\n// Registrar incidencia en Base de Incidencias (Proforma V4.1 §7.4)\n// El rechazo debe ser ESPECÍFICO por documento, nunca genérico.\n// ================================================================\nconst resultado = $input.first().json;\nconst tipoDoc = $('Identificar Tipo de Documento').item.json.tipoDoc;\nconst telefono = $('Identificar Tipo de Documento').item.json.telefono;\n\n// Construir nombre legible del documento\nconst nombresDoc = {\n  'INE': 'INE',\n  'COMPROBANTE_DOMICILIO': 'Comprobante de Domicilio',\n  'RESOLUCION_PENSION': 'Resolución de Pensión',\n  'ESTADO_CUENTA': 'Estado de Cuenta',\n  'RESUMEN_MOVIMIENTOS': 'Resumen de Movimientos',\n  'FOTO_INE': 'Foto con INE',\n  'OTRO': 'Documento'\n};\n\nconst nombreLegible = nombresDoc[tipoDoc] || tipoDoc;\n\n// El mensaje de rechazo viene del backend (ya es específico)\nconst motivoDetallado = resultado.observaciones || 'No se pudo determinar el motivo del rechazo';\n\nreturn [{ json: {\n  telefono,\n  tipoDoc,\n  nombreLegible,\n  motivoDetallado,\n  puntajeCalidad: resultado.puntajeCalidad || 0,\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "preparar-rechazo",
+      "name": "Preparar Rechazo Específico",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8080/api/webhook/n8n/incidencia",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{"name": "Content-Type", "value": "application/json"}]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  telefono: $json.telefono,\n  documento_rechazado: $json.tipoDoc,\n  motivo: $json.motivoDetallado,\n  puntaje_calidad: $json.puntajeCalidad,\n  timestamp: $json.timestamp\n}) }}",
+        "options": {}
+      },
+      "id": "registrar-incidencia",
+      "name": "Registrar en Base de Incidencias",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  messaging_product: 'whatsapp',\n  to: $json.telefono,\n  type: 'text',\n  text: { body: $json.motivoDetallado }\n}) }}",
+        "options": {}
+      },
+      "id": "notificar-rechazado",
+      "name": "Notificar Rechazo Específico al Prospecto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Identificar Tipo de Documento').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"✅ *{{ $('Identificar Tipo de Documento').item.json.tipoDoc.replace(/_/g, ' ') }}* recibido y validado correctamente.\\n\\nPuntaje de calidad: {{ Math.round($('Validar con OCR Backend').item.json.puntajeCalidad * 100) }}%\\n\\nContinúe enviando el siguiente documento de su expediente.\" }\n}",
+        "options": {}
+      },
+      "id": "notificar-aprobado",
+      "name": "Notificar Documento Aprobado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1780, 80]
+    }
+  ],
+  "connections": {
+    "Webhook — Documentos WhatsApp": {
+      "main": [[{"node": "Identificar Tipo de Documento", "type": "main", "index": 0}]]
+    },
+    "Identificar Tipo de Documento": {
+      "main": [[{"node": "¿Es un Documento?", "type": "main", "index": 0}]]
+    },
+    "¿Es un Documento?": {
+      "main": [
+        [{"node": "Obtener URL del Media", "type": "main", "index": 0}],
+        [{"node": "Solicitar Documento al Prospecto", "type": "main", "index": 0}]
+      ]
+    },
+    "Obtener URL del Media": {
+      "main": [[{"node": "Descargar Documento", "type": "main", "index": 0}]]
+    },
+    "Descargar Documento": {
+      "main": [[{"node": "Validar con OCR Backend", "type": "main", "index": 0}]]
+    },
+    "Validar con OCR Backend": {
+      "main": [[{"node": "¿Documento Aprobado?", "type": "main", "index": 0}]]
+    },
+    "¿Documento Aprobado?": {
+      "main": [
+        [{"node": "Notificar Documento Aprobado", "type": "main", "index": 0}],
+        [{"node": "Preparar Rechazo Específico", "type": "main", "index": 0}]
+      ]
+    },
+    "Preparar Rechazo Específico": {
+      "main": [[{"node": "Registrar en Base de Incidencias", "type": "main", "index": 0}]]
+    },
+    "Registrar en Base de Incidencias": {
+      "main": [[{"node": "Notificar Rechazo Específico al Prospecto", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Módulo IV"}]
+}

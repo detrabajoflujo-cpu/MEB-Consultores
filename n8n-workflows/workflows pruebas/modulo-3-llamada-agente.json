@@ -1,0 +1,553 @@
+{
+  "name": "Módulo III — Agente de IA, Seguimiento y Asignación Round-Robin",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "disparar-llamada",
+        "options": {}
+      },
+      "id": "trigger-llamada",
+      "name": "Trigger — Disparar Llamada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validar ventana de llamadas: 08:00 – 19:00 hrs (Proforma V4.1 §6)\nconst ahora = new Date();\nconst hora = ahora.getHours();\n\nif (hora < 8 || hora >= 19) {\n  return [{ json: {\n    ...($input.first().json),\n    dentro_ventana: false,\n    motivo: `Llamada fuera de ventana permitida (${hora}:${String(ahora.getMinutes()).padStart(2,'0')} hrs). Ventana: 08:00–19:00.`\n  }}];\n}\n\nreturn [{ json: { ...($input.first().json), dentro_ventana: true } }];"
+      },
+      "id": "validar-ventana",
+      "name": "Validar Ventana de Llamadas (08-19h)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.dentro_ventana }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-ventana",
+      "name": "¿Dentro de Ventana Horaria?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.bland.ai/v1/calls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.BLAND_AI_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone_number\": \"{{ $json.telefono }}\",\n  \"task\": \"Eres el Agente de IA de Punto Clínico. Tu objetivo es realizar el contacto inicial con el prospecto {{ $json.nombre }}, perfilar su interés en un incremento de pensión IMSS y agendar cita con un asesor humano. NO ofreces préstamos, es un trámite legal.\\n\\nGUION OBLIGATORIO:\\n1. Hola, muy buenos días. ¿Me comunico con don/doña {{ $json.nombre }}?\\n2. Nos comunicamos respecto a su solicitud de incremento de pensión. No le vamos a solicitar ni un solo peso por adelantado. Cobramos al final, hasta que su retroactivo esté depositado.\\n3. El trámite tarda de 2 a 7 días. Aumentamos su pensión mensual de por vida bajo amparo federal (Ley 73). A cambio, el IMSS da un pago retroactivo de ~5 meses. Cobramos el 80% de ese retroactivo por gestión e inversión. Usted no paga absolutamente NADA hasta tener el dinero en sus manos.\\n4. Le enviaré por WhatsApp una lista de documentos. IMPORTANTE: Deben ser escaneados en PDF, el IMSS rechaza fotos. Solo pediremos una foto suya sosteniendo su INE al final.\\n\\nREGLAS Y FAQ:\\n- Si exige cifra exacta: Es una proyección con 90% de seguridad. El analista ratificará la cifra final.\\n- Pago: Tendrá máximo 5 horas tras recibir el dinero para pagarnos el 80%.\\n- ¿Fraude? No pedimos dinero adelantado y firmamos contrato.\\n- ¿Oficinas? Tuxtla Gutiérrez, Chiapas.\\n- ¿AFORE? No la tocamos, son trámites independientes.\\n- ¿Riesgo? Ninguno. Su pensión mensual no se pausa ni se interrumpe.\\n\\nOBJETIVO FINAL:\\nPreguntar si cuenta con alguien que le ayude a escanear los documentos, y confirmar que un compañero se comunicará.\\n\\nREPORTE DE RESULTADO:\\nAl finalizar, agradece y despídete. INTERNAMENTE DEBES incluir obligatoriamente en tu respuesta de sistema una de estas palabras clave exactas: SI_INTERESADO, NO_INTERESADO, o VOLVER_A_LLAMAR.\",\n  \"model\": \"enhanced\",\n  \"language\": \"es\",\n  \"voice\": \"maya\",\n  \"max_duration\": 7,\n  \"webhook\": \"{{ $env.N8N_WEBHOOK_URL }}/webhook/resultado-llamada\",\n  \"record\": true,\n  \"wait_for_greeting\": true,\n  \"interruption_threshold\": 150\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "llamada-bland",
+      "name": "Bland.ai — Iniciar Llamada IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        900,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Programar reintento fuera de horario — guardar el lead para mañana 08:00\nconst lead = $input.first().json;\nconst intentos = lead.intentos_llamada || 0;\n\nif (intentos >= 4) {\n  return [{ json: { ...lead, accion: 'DESCARTAR', motivo: 'Fuera de ventana por 4 días consecutivos — descarte por abandono' } }];\n}\n\nreturn [{ json: {\n  ...lead,\n  accion: 'REINTENTAR',\n  intentos_llamada: intentos + 1,\n  proxima_llamada: 'Mañana 08:00 hrs'\n} }];"
+      },
+      "id": "programar-reintento",
+      "name": "Programar Reintento — Fuera de Horario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "resultado-llamada",
+        "options": {}
+      },
+      "id": "webhook-resultado",
+      "name": "Webhook — Resultado de Llamada Bland.ai",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resultado = $input.first().json;\nconst transcripcion = resultado.transcripts?.join(' ') || resultado.summary || resultado.concatenated_transcript || '';\n\nlet decision = 'VOLVER_A_LLAMAR';\nif (transcripcion.includes('SI_INTERESADO') ||\n    transcripcion.toLowerCase().includes('si me interesa') ||\n    transcripcion.toLowerCase().includes('sí quiero')) {\n  decision = 'SI_INTERESADO';\n} else if (transcripcion.includes('NO_INTERESADO') ||\n           transcripcion.toLowerCase().includes('no me interesa') ||\n           transcripcion.toLowerCase().includes('no gracias')) {\n  decision = 'NO_INTERESADO';\n}\n\nreturn [{ json: {\n  call_id: resultado.call_id,\n  duracion_segundos: resultado.call_length,\n  decision,\n  grabacion_url: resultado.recording_url,\n  transcripcion: transcripcion,\n  telefono: resultado.to,\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "procesar-resultado",
+      "name": "Procesar Resultado de Llamada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "SI_INTERESADO",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-interesado",
+      "name": "¿Prospecto Interesado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "VOLVER_A_LLAMAR",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-volver",
+      "name": "¿Requiere Seguimiento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================================================================\n// SEGUIMIENTO: 4 mensajes automáticos en 3 días (Proforma V4.1 §6)\n// ================================================================\nconst lead = $input.first().json;\nconst intentos = lead.intentos_seguimiento || 0;\n\nconst mensajes = [\n  \"Buenos días 👋 Le habla el equipo de *Punto Clínico*. Le llamamos respecto al incremento en su pensión IMSS. ¿Sería posible que le devolvamos la llamada en los próximos minutos?\",\n  \"Estimado/a, seguimos tratando de comunicarnos con usted sobre su solicitud de incremento de pensión. Recuerde que este trámite no tiene ningún costo hasta que tenga el dinero en manos. ¿Cuándo le es posible hablar?\",\n  \"Tercer intento de contacto. Su expediente está listo para iniciar. No le pediremos nada adelantado — solo queremos presentarle los detalles. ¿Tiene un momento hoy?\",\n  \"Último intento de contacto. Si no recibimos respuesta, cerraremos su solicitud. Si desea continuar, por favor escríbanos o responda este mensaje. ¡Gracias por su tiempo!\"\n];\n\nif (intentos >= 4) {\n  return [{ json: {\n    ...lead,\n    accion: 'DESCARTAR',\n    motivo: 'Sin respuesta tras 4 intentos de seguimiento en 3 días'\n  } }];\n}\n\nreturn [{ json: {\n  ...lead,\n  accion: 'ENVIAR_SEGUIMIENTO',\n  mensaje_seguimiento: mensajes[intentos],\n  intento_num: intentos + 1,\n  intentos_seguimiento: intentos + 1\n} }];"
+      },
+      "id": "preparar-seguimiento",
+      "name": "Preparar Mensaje Seguimiento (1-4)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"{{ $json.mensaje_seguimiento }}\" }\n}",
+        "options": {}
+      },
+      "id": "enviar-seguimiento",
+      "name": "Enviar Mensaje de Seguimiento WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1340,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================================================================\n// ASIGNACIÓN ROUND-ROBIN — 6 agentes humanos (Proforma V4.1 §6)\n// El agente asignado es propietario permanente del lead.\n// Entre agentes NO hay visibilidad cruzada de leads.\n// ================================================================\nconst AGENTES = [\n  { id: 'AGT-01', nombre: 'Agente 1', telefono: process.env.AGENTE_1_TEL || '' },\n  { id: 'AGT-02', nombre: 'Agente 2', telefono: process.env.AGENTE_2_TEL || '' },\n  { id: 'AGT-03', nombre: 'Agente 3', telefono: process.env.AGENTE_3_TEL || '' },\n  { id: 'AGT-04', nombre: 'Agente 4', telefono: process.env.AGENTE_4_TEL || '' },\n  { id: 'AGT-05', nombre: 'Agente 5', telefono: process.env.AGENTE_5_TEL || '' },\n  { id: 'AGT-06', nombre: 'Agente 6', telefono: process.env.AGENTE_6_TEL || '' }\n];\n\n// Contador global de asignaciones usando timestamp para distribuir\nconst contadorBase = Math.floor(Date.now() / 1000);\nconst indice = contadorBase % AGENTES.length;\nconst agenteAsignado = AGENTES[indice];\n\nreturn [{ json: {\n  ...($input.first().json),\n  asesor_propietario: agenteAsignado.id,\n  asesor_nombre: agenteAsignado.nombre,\n  asesor_telefono: agenteAsignado.telefono,\n  timestamp_asignacion: new Date().toISOString()\n} }];"
+      },
+      "id": "round-robin",
+      "name": "Round-Robin — Asignar a 1 de 6 Agentes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8080/api/webhook/n8n/prospecto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"telefono\": \"{{ $json.telefono }}\",\n  \"asesor_propietario\": \"{{ $json.asesor_propietario }}\",\n  \"asesor_nombre\": \"{{ $json.asesor_nombre }}\",\n  \"estatus\": \"CONTACTADO\"\n}",
+        "options": {}
+      },
+      "id": "registrar-asignacion",
+      "name": "Registrar Asignación en DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Procesar Resultado de Llamada').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"¡Excelente noticia! 🎉\\n\\nSu expediente ha quedado registrado y fue asignado a *{{ $json.asesor_nombre }}*, quien será su asesor personal durante todo el proceso.\\n\\nEn breve le contactará para:\\n✅ Explicarle el proceso completo\\n✅ Enviarle el contrato\\n✅ Indicarle qué documentos necesita (TODOS escaneados en PDF)\\n\\n📌 *IMPORTANTE:* Su asesor le dirá exactamente qué documentos enviar y cómo hacerlo. Los documentos deben ser escaneos de escáner, NO fotos de celular.\\n\\n¡Gracias por confiar en nosotros! 🙌\" }\n}",
+        "options": {}
+      },
+      "id": "notificar-si",
+      "name": "Notificar — Confirmación y Asesor Asignado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1340,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Procesar Resultado de Llamada').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"Gracias por su tiempo. Si en el futuro cambia de opinión, con gusto le atendemos.\\n\\n¡Que tenga un excelente día! 😊\" }\n}",
+        "options": {}
+      },
+      "id": "notificar-no",
+      "name": "Notificar — No Interesado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Procesar Resultado de Llamada').item.json.telefono }}\",\n  \"type\": \"document\",\n  \"document\": {\n    \"link\": \"https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf\",\n    \"caption\": \"Presentación Corporativa Punto Clínico\"\n  }\n}",
+        "options": {}
+      },
+      "id": "enviar-pdf-corporativo",
+      "name": "Enviar PDF Corporativo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1560,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Procesar Resultado de Llamada').item.json.telefono }}\",\n  \"type\": \"image\",\n  \"image\": {\n    \"link\": \"https://images.unsplash.com/photo-1556155092-490a1ba16284?auto=format&fit=crop&q=80\",\n    \"caption\": \"Requisitos Documentales para Trámite\"\n  }\n}",
+        "options": {}
+      },
+      "id": "enviar-imagen-requisitos",
+      "name": "Enviar Imagen Requisitos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1780,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Trigger — Disparar Llamada": {
+      "main": [
+        [
+          {
+            "node": "Validar Ventana de Llamadas (08-19h)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Ventana de Llamadas (08-19h)": {
+      "main": [
+        [
+          {
+            "node": "¿Dentro de Ventana Horaria?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Dentro de Ventana Horaria?": {
+      "main": [
+        [
+          {
+            "node": "Bland.ai — Iniciar Llamada IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Programar Reintento — Fuera de Horario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Resultado de Llamada Bland.ai": {
+      "main": [
+        [
+          {
+            "node": "Procesar Resultado de Llamada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Resultado de Llamada": {
+      "main": [
+        [
+          {
+            "node": "¿Prospecto Interesado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Prospecto Interesado?": {
+      "main": [
+        [
+          {
+            "node": "Round-Robin — Asignar a 1 de 6 Agentes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Requiere Seguimiento?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Requiere Seguimiento?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Mensaje Seguimiento (1-4)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notificar — No Interesado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Mensaje Seguimiento (1-4)": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje de Seguimiento WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Round-Robin — Asignar a 1 de 6 Agentes": {
+      "main": [
+        [
+          {
+            "node": "Registrar Asignación en DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Asignación en DB": {
+      "main": [
+        [
+          {
+            "node": "Notificar — Confirmación y Asesor Asignado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar — Confirmación y Asesor Asignado": {
+      "main": [
+        [
+          {
+            "node": "Enviar PDF Corporativo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar PDF Corporativo": {
+      "main": [
+        [
+          {
+            "node": "Enviar Imagen Requisitos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "Módulo III"
+    }
+  ]
+}

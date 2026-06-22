@@ -1,0 +1,99 @@
+{
+  "name": "Módulo VI — Payload Final y Despacho",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "despachar-expediente",
+        "options": {}
+      },
+      "id": "trigger-despacho",
+      "name": "Trigger — Despachar Expediente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://backend:8080/api/expedientes/{{ $json.expediente_id }}",
+        "options": {}
+      },
+      "id": "obtener-expediente-final",
+      "name": "Obtener Expediente Completo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const exp = $input.first().json;\nconst p = exp.prospecto;\n\n// Construir el Payload JSON Final según especificación del .md\nconst payloadFinal = {\n  prospecto_identificacion: {\n    origen_canal: p.origenCanal || 'Meta Ads',\n    nombre_completo: p.nombreCompleto,\n    telefono_contacto: p.telefonoContacto,\n    curp_validada_regex: p.curp,\n    nss_validado_regex: p.nss\n  },\n  analisis_financiero_ia: {\n    monto_pension_actual: exp.montoPensionActual,\n    institucion_bancaria: exp.institucionBancaria,\n    cuenta_clabe_validada: exp.cuentaClabe\n  },\n  control_operativo: {\n    estatus_actual_hoja: 'VIABLE',\n    fecha_despacho: new Date().toISOString()\n  },\n  expediente_empaquetado: {\n    nombre_carpeta_drive: exp.nombreCarpetaDrive,\n    url_directa_carpeta: exp.urlCarpetaDrive,\n    auditoria_ocr_documentos: {\n      ine_digital_ambos_lados: exp.ineAmbosLados === 'APROBADO' ? 'Aprobado' : 'Pendiente',\n      comprobante_cfe_digital: exp.comprobanteDomicilio === 'APROBADO' ? 'Aprobado' : 'Pendiente',\n      resolucion_pension_digital: exp.resolucionPension === 'APROBADO' ? 'Aprobado' : 'Pendiente',\n      estados_cuenta_movimientos: exp.estadosCuenta === 'APROBADO' ? 'Aprobado' : 'Pendiente',\n      foto_con_ine_mandatoria: exp.fotoConIne === 'APROBADO' ? 'Aprobado' : 'Pendiente'\n    }\n  },\n  formalizacion_legal: {\n    evidencia_tipo: exp.evidenciaTipo || 'Videoconvenio',\n    aprobacion_superior_manual: exp.aprobacionSuperior || false,\n    aprobado_por: exp.aprobadoPor\n  }\n};\n\nreturn [{ json: { payload: payloadFinal, telefono_prospecto: p.telefonoContacto } }];"
+      },
+      "id": "construir-payload",
+      "name": "Construir Payload JSON Final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $env.GRUPO_OPERACIONES_ID }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"📦 *EXPEDIENTE DESPACHADO*\\n\\n```json\\n{{ JSON.stringify($json.payload, null, 2) }}\\n```\" }\n}",
+        "options": {}
+      },
+      "id": "enviar-grupo",
+      "name": "Enviar al Grupo de Operaciones",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.telefono_prospecto }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"🎉 ¡Felicidades! Tu expediente ha sido *aprobado y despachado* exitosamente.\\n\\n✅ Toda la documentación está en orden.\\n\\nNuestro equipo se pondrá en contacto contigo en las próximas 24-48 horas para coordinar la firma del convenio.\\n\\n¡Gracias por tu confianza! 🤝\" }\n}",
+        "options": {}
+      },
+      "id": "notificar-prospecto-final",
+      "name": "Notificar al Prospecto — Aprobado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 420]
+    }
+  ],
+  "connections": {
+    "Trigger — Despachar Expediente": {
+      "main": [[{"node": "Obtener Expediente Completo", "type": "main", "index": 0}]]
+    },
+    "Obtener Expediente Completo": {
+      "main": [[{"node": "Construir Payload JSON Final", "type": "main", "index": 0}]]
+    },
+    "Construir Payload JSON Final": {
+      "main": [
+        [{"node": "Enviar al Grupo de Operaciones", "type": "main", "index": 0}],
+        [{"node": "Notificar al Prospecto — Aprobado", "type": "main", "index": 0}]
+      ]
+    }
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Módulo VI"}]
+}

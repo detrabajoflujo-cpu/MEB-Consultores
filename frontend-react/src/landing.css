@@ -1,0 +1,259 @@
+/* ===== LANDING PAGE (MEB Consultores) ===== */
+.landing-page {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: #1E293B;
+  background-color: #F8FAFC;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Base Colors: Navy Blue (#0F172A) & Gold (#D4AF37) */
+
+/* Header */
+.landing-header {
+  background-color: #0F172A; /* Navy Blue */
+  color: #FFFFFF;
+  padding: 1rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.landing-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+
+.landing-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-icon {
+  font-size: 1.75rem;
+}
+
+.logo-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #D4AF37; /* Gold */
+}
+
+.landing-nav {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.btn-nav {
+  background: none;
+  border: none;
+  color: #CBD5E1; /* Light Silver */
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.btn-nav:hover {
+  color: #D4AF37;
+}
+
+.btn-login-outline {
+  background: transparent;
+  border: 1px solid #D4AF37;
+  color: #D4AF37;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-login-outline:hover {
+  background: #D4AF37;
+  color: #0F172A;
+}
+
+/* Hero Section */
+.landing-hero {
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+  color: #FFFFFF;
+  padding: 6rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 1.5rem;
+}
+
+.text-gold {
+  color: #D4AF37;
+}
+
+.hero-subtitle {
+  font-size: 1.25rem;
+  color: #94A3B8; /* Silver variant */
+  max-width: 800px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+}
+
+.text-center { text-align: center; }
+
+.btn-gold {
+  background-color: #D4AF37;
+  color: #0F172A;
+  border: none;
+  padding: 1rem 2.5rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
+}
+
+/* Info Section */
+.landing-info {
+  padding: 5rem 0;
+  background-color: #FFFFFF;
+}
+
+.flex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.info-card {
+  background: #F8FAFC;
+  padding: 2.5rem;
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid #E2E8F0;
+  transition: transform 0.3s;
+}
+
+.info-card:hover {
+  transform: translateY(-5px);
+  border-color: #D4AF37;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.info-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.info-card h3 {
+  color: #0F172A;
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.info-card p {
+  color: #475569;
+  line-height: 1.6;
+}
+
+/* Privacy Policy */
+.landing-privacy {
+  padding: 5rem 0;
+  background-color: #F1F5F9;
+}
+
+.privacy-card {
+  background: #FFFFFF;
+  padding: 4rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  color: #334155;
+  line-height: 1.7;
+}
+
+.privacy-card h2 {
+  color: #0F172A;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.privacy-date {
+  color: #94A3B8;
+  font-size: 0.9rem;
+  margin-bottom: 2.5rem;
+  border-bottom: 1px solid #E2E8F0;
+  padding-bottom: 1rem;
+}
+
+.privacy-card h3 {
+  color: #0F172A;
+  font-size: 1.25rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.privacy-card p {
+  margin-bottom: 1rem;
+}
+
+.privacy-card ul {
+  margin-left: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.privacy-card li {
+  margin-bottom: 0.5rem;
+}
+
+.privacy-card a {
+  color: #D4AF37;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.privacy-card a:hover {
+  text-decoration: underline;
+}
+
+.contact-info {
+  background: #F8FAFC;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border-left: 4px solid #D4AF37;
+  margin: 1.5rem 0;
+}
+
+.contact-info p {
+  margin-bottom: 0.5rem;
+}
+
+.contact-info p:last-child {
+  margin-bottom: 0;
+}
+
+/* Footer */
+.landing-footer {
+  background-color: #0F172A;
+  color: #94A3B8;
+  padding: 2rem 0;
+  margin-top: auto;
+}

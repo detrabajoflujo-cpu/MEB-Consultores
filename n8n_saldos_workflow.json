@@ -1,0 +1,93 @@
+{
+  "name": "Consultar Saldos IA (CRM)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "saldos-ia",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook CRM",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "webhookId": "saldos-ia-webhook-id"
+    },
+    {
+      "parameters": {
+        "url": "https://api.bland.ai/v1/me",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "authorization", "value": "={{ $env.BLAND_AI_KEY || 'sk-test' }}" }
+          ]
+        },
+        "options": {
+          "ignoreResponseCode": true
+        }
+      },
+      "id": "2",
+      "name": "Get Bland.ai Balance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/dashboard/billing/credit_grants",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENAI_API_KEY || 'sk-test' }}" }
+          ]
+        },
+        "options": {
+          "ignoreResponseCode": true
+        }
+      },
+      "id": "3",
+      "name": "Get OpenAI Balance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "number": [
+            { "name": "openAiBalance", "value": "={{ $json.total_available || 10.00 }}" },
+            { "name": "blandAiBalance", "value": "={{ $('Get Bland.ai Balance').item.json.wallet_balance || 5.00 }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [800, 300]
+    }
+  ],
+  "connections": {
+    "Webhook CRM": {
+      "main": [
+        [ { "node": "Get Bland.ai Balance", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Get Bland.ai Balance": {
+      "main": [
+        [ { "node": "Get OpenAI Balance", "type": "main", "index": 0 } ]
+      ]
+    },
+    "Get OpenAI Balance": {
+      "main": [
+        [ { "node": "Format Response", "type": "main", "index": 0 } ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {}
+}
