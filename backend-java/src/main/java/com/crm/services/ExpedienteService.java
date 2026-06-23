@@ -159,6 +159,58 @@ public class ExpedienteService {
         return expedienteRepository.save(exp);
     }
 
+    public Expediente actualizarExpedienteCompleto(Long prospectoId, java.util.Map<String, Object> body) {
+        Prospecto p = prospectoRepository.findById(prospectoId)
+            .orElseThrow(() -> new RuntimeException("Prospecto no encontrado: " + prospectoId));
+        Expediente exp = expedienteRepository.findByProspecto(p)
+            .orElseThrow(() -> new RuntimeException("Expediente no encontrado para prospecto: " + prospectoId));
+
+        // Datos del prospecto
+        if (body.containsKey("nombreCompleto")) p.setNombreCompleto(((String) body.get("nombreCompleto")).toUpperCase());
+        if (body.containsKey("curp")) p.setCurp(((String) body.get("curp")).toUpperCase());
+        if (body.containsKey("nss")) p.setNss((String) body.get("nss"));
+        if (body.containsKey("telefonoContacto")) p.setTelefonoContacto((String) body.get("telefonoContacto"));
+        if (body.containsKey("correoElectronico")) p.setCorreoElectronico((String) body.get("correoElectronico"));
+        if (body.containsKey("correoSipre")) p.setCorreoSipre((String) body.get("correoSipre"));
+        if (body.containsKey("contactado")) p.setContactado((Boolean) body.get("contactado"));
+        if (body.containsKey("origenCanal")) p.setOrigenCanal((String) body.get("origenCanal"));
+        if (body.containsKey("estatus") && body.get("estatus") != null && !((String) body.get("estatus")).isBlank()) {
+            p.setEstatus(Prospecto.EstatusProspecto.valueOf((String) body.get("estatus")));
+        }
+
+        // Validar CURP y NSS si cambiaron
+        if (body.containsKey("curp") || body.containsKey("nss")) {
+            ValidacionService.ResultadoValidacion val = validacionService.validarProspecto(p.getCurp(), p.getNss(), null, p.getTelefonoContacto());
+            p.setCurpValida(val.curpValida());
+            p.setNssValido(val.nssValido());
+        }
+        prospectoRepository.save(p);
+
+        // Datos Financieros / Expediente
+        if (body.containsKey("montoPensionActual")) exp.setMontoPensionActual(parseBigDecimal(body.get("montoPensionActual")));
+        if (body.containsKey("institucionBancaria")) exp.setInstitucionBancaria((String) body.get("institucionBancaria"));
+        if (body.containsKey("cuentaClabe")) exp.setCuentaClabe((String) body.get("cuentaClabe"));
+        if (body.containsKey("aumentoPension")) exp.setAumentoPension(parseBigDecimal(body.get("aumentoPension")));
+        if (body.containsKey("retroactivoFicticio")) exp.setRetroactivoFicticio(parseBigDecimal(body.get("retroactivoFicticio")));
+        if (body.containsKey("retroactivoFinal")) exp.setRetroactivoFinal(parseBigDecimal(body.get("retroactivoFinal")));
+        if (body.containsKey("linkConstancia")) exp.setLinkConstancia((String) body.get("linkConstancia"));
+        if (body.containsKey("evidenciaTipo")) exp.setEvidenciaTipo((String) body.get("evidenciaTipo"));
+        if (body.containsKey("pagado")) exp.setPagado((Boolean) body.get("pagado"));
+        if (body.containsKey("estatusExpediente") && body.get("estatusExpediente") != null && !((String) body.get("estatusExpediente")).isBlank()) {
+            exp.setEstatusExpediente(Expediente.EstatusExpediente.valueOf((String) body.get("estatusExpediente")));
+        }
+        if (body.containsKey("nombreCarpetaDrive")) exp.setNombreCarpetaDrive((String) body.get("nombreCarpetaDrive"));
+        
+        return expedienteRepository.save(exp);
+    }
+
+    private java.math.BigDecimal parseBigDecimal(Object val) {
+        if (val == null) return null;
+        if (val instanceof Number) return new java.math.BigDecimal(val.toString());
+        if (val instanceof String && !((String) val).isBlank()) return new java.math.BigDecimal((String) val);
+        return null;
+    }
+
     public List<Prospecto> listarProspectos() {
         return prospectoRepository.findAllByOrderByFechaIngresoDesc();
     }
@@ -187,7 +239,6 @@ public class ExpedienteService {
         Prospecto p = exp.getProspecto();
         if (viable) {
             p.setEstatus(Prospecto.EstatusProspecto.VIABLE);
-            exp.setResolucionPension(Expediente.EstadoDocumento.APROBADO);
         } else {
             p.setEstatus(Prospecto.EstatusProspecto.NO_VIABLE);
             exp.setEstatusExpediente(Expediente.EstatusExpediente.RECHAZADO);

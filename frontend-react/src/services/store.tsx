@@ -14,6 +14,7 @@ import {
   eliminarNota,
   getNotasUrgentes,
   checkBackendHealth,
+  actualizarExpedienteCompleto,
 } from '../services/api';
 
 // ============================================================
@@ -54,6 +55,7 @@ interface Store {
   addProspecto: (p: Omit<Prospecto, 'id' | 'fechaIngreso' | 'fechaUltimaActualizacion'>) => Promise<Prospecto>;
   updateEstatus: (id: number, estatus: Prospecto['estatus'], obs?: string) => Promise<void>;
   updateProspecto: (id: number, fields: Partial<Prospecto>) => Promise<void>;
+  updateExpedienteCompleto: (id: number, data: any) => Promise<void>;
   deleteProspecto: (id: number) => Promise<void>;
   addNota: (prospectoId: number, nota: Omit<Nota, 'id' | 'fechaCreacion'>) => Promise<void>;
   resolveNota: (id: number) => Promise<void>;
@@ -226,6 +228,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     ));
   }, []);
 
+  const updateExpedienteCompleto = useCallback(async (id: number, data: any) => {
+    await actualizarExpedienteCompleto(id, data);
+    setProspectos(prev => prev.map(p => {
+      if (p.id === id) {
+        // Map backend keys to frontend state
+        return {
+          ...p,
+          nombreCompleto: data.nombreCompleto ?? p.nombreCompleto,
+          curp: data.curp ?? p.curp,
+          nss: data.nss ?? p.nss,
+          telefonoContacto: data.telefonoContacto ?? p.telefonoContacto,
+          origenCanal: data.origenCanal ?? p.origenCanal,
+          estatus: data.estatus ?? p.estatus,
+          
+          montoPensionActual: data.montoPensionActual ?? p.montoPensionActual,
+          institucionBancaria: data.institucionBancaria ?? p.institucionBancaria,
+          cuentaClabe: data.cuentaClabe ?? p.cuentaClabe,
+          aumentoPension: data.aumentoPension ?? p.aumentoPension,
+          retroactivoFicticio: data.retroactivoFicticio ?? (p as any).retroactivoFicticio,
+          retroactivoFinal: data.retroactivoFinal ?? (p as any).retroactivoFinal,
+          linkConstancia: data.linkConstancia ?? (p as any).linkConstancia,
+          evidenciaTipo: data.evidenciaTipo ?? (p as any).evidenciaTipo,
+          pagado: data.pagado ?? (p as any).pagado,
+          estatusExpediente: data.estatusExpediente ?? p.estatusExpediente,
+          nombreCarpetaDrive: data.nombreCarpetaDrive ?? p.nombreCarpetaDrive,
+          correoElectronico: data.correoElectronico ?? p.correoElectronico,
+          correoSipre: data.correoSipre ?? p.correoSipre,
+          contactado: data.contactado ?? p.contactado,
+
+          fechaUltimaActualizacion: new Date().toISOString()
+        };
+      }
+      return p;
+    }));
+  }, []);
+
   const deleteProspecto = useCallback(async (id: number) => {
     await eliminarProspecto(id);
     setProspectos(prev => prev.filter(p => p.id !== id));
@@ -309,7 +347,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <StoreCtx.Provider value={{
       prospectos, stats, notas, backendOnline, loading,
-      addProspecto, updateEstatus, updateProspecto, deleteProspecto,
+      addProspecto, updateEstatus, updateProspecto, updateExpedienteCompleto, deleteProspecto,
       addNota, resolveNota, deleteNota, getNotasByProspecto, getUrgentNotas, getAllNotas,
       refreshProspectos,
     }}>

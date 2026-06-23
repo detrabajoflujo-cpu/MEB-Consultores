@@ -1,0 +1,575 @@
+{
+  "name": "Módulo 5: Empaquetado y Cierre",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "modulo5",
+        "options": {}
+      },
+      "id": "webhook-mod-5",
+      "name": "Webhook Modulo 5",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "phone",
+              "value": "={{ $json.body.payload.entry[0].changes[0].value.messages[0].from.replace(/^521/, '52') }}"
+            },
+            {
+              "name": "media_id",
+              "value": "={{ $json.body.payload.entry[0].changes[0].value.messages[0].image ? $json.body.payload.entry[0].changes[0].value.messages[0].image.id : '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extraer-datos",
+      "name": "Extraer Datos",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.media_id }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "has-media",
+      "name": "Verificar Archivo",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 5').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"messaging_product\": \"whatsapp\", \"to\": $('Extraer Datos').first().json.phone, \"type\": \"text\", \"text\": { \"body\": \"⚠️ Por favor, envíanos tu foto biométrica como una IMAGEN válida de WhatsApp.\" } }) }}"
+      },
+      "id": "error-no-media",
+      "name": "Error Sin Archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        600,
+        200
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v17.0/{{ $json.media_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "options": {}
+      },
+      "id": "get-media-url",
+      "name": "Obtener URL Archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        600,
+        -100
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT e.id as expediente_id, p.id as prospecto_id, e.nombre_carpeta_drive FROM expedientes e JOIN prospectos p ON e.prospecto_id = p.id WHERE p.telefono_contacto = '{{ $('Extraer Datos').first().json.phone }}';"
+      },
+      "id": "get-expediente",
+      "name": "Obtener Expediente",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "set-prompt",
+      "name": "Set Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        -100
+      ],
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "prompt",
+              "value": "Verifica que la imagen proporcionada sea una foto biométrica (una selfie de la persona tomada de medio cuerpo o rostro, sosteniendo claramente su Identificación Oficial INE cerca de su rostro). No evalúes la calidad artística, solo verifica que sea una selfie sosteniendo un INE."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Obtener URL Archivo').first().json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "responseFormat": "file",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "download-media",
+      "name": "Descargar Archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        -100
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "id": "to-base64",
+      "name": "Convertir a Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nfor (let item of items) {\n  if (item.binary && item.binary.data) {\n    const binaryData = await this.helpers.getBinaryDataBuffer(0, 'data');\n    item.json.base64 = binaryData.toString('base64');\n    item.json.mimeType = item.binary.data.mimeType || 'image/jpeg';\n    if (item.json.mimeType.includes('pdf')) item.json.ext = 'pdf';\n    else if (item.json.mimeType.includes('png')) item.json.ext = 'png';\n    else item.json.ext = 'jpg';\n  }\n}\nreturn items;"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ocr-service:8000/validate",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "file_base64",
+              "value": "={{ $json.base64 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "call-ocr",
+      "name": "Llamar API OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1600,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valido }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "is-valid",
+      "name": "¿Es Válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE expedientes SET foto_con_ine = 'RECHAZADO' WHERE prospecto_id = {{ $('Obtener Expediente').first().json.prospecto_id }};"
+      },
+      "id": "db-rechazado",
+      "name": "DB RECHAZADO",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 5').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"messaging_product\": \"whatsapp\", \"to\": $('Extraer Datos').first().json.phone, \"type\": \"text\", \"text\": { \"body\": \"⚠️ Hubo un problema con tu foto biométrica:\\n\\n\" + $('Llamar API OCR').first().json.motivo_rechazo + \"\\n\\nPor favor, vuelve a intentarlo.\" } }) }}"
+      },
+      "id": "send-error",
+      "name": "Enviar Mensaje Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2100,
+        100
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE expedientes SET foto_con_ine = 'APROBADO', estatus_expediente = 'COMPLETO' WHERE prospecto_id = {{ $('Obtener Expediente').first().json.prospecto_id }}; UPDATE prospectos SET estatus = 'FORMALIZADO' WHERE id = {{ $('Obtener Expediente').first().json.prospecto_id }};"
+      },
+      "id": "db-aprobado",
+      "name": "DB APROBADO",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nfor (let item of items) {\n  const baseData = $('Convertir a Base64').first().json;\n  item.binary = {\n    data: {\n      data: baseData.base64,\n      mimeType: baseData.mimeType || 'image/jpeg',\n      fileName: 'biometria.' + (baseData.ext || 'jpg')\n    }\n  };\n}\nreturn items;"
+      },
+      "id": "restore-binary",
+      "name": "Restaurar Binario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "fileContent": "data",
+        "fileName": "=biometria.{{ $('Convertir a Base64').first().json.ext || 'jpg' }}",
+        "parents": [
+          "={{ $('Obtener Expediente').first().json.nombre_carpeta_drive }}"
+        ],
+        "options": {}
+      },
+      "id": "upload-drive",
+      "name": "Subir a Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2300,
+        -200
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "xH344n6lX17B6nFm",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 5').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"messaging_product\": \"whatsapp\", \"to\": $('Extraer Datos').first().json.phone, \"type\": \"text\", \"text\": { \"body\": \"¡Biometría aprobada y expediente subido a Drive! ✅\\n\\nTu expediente ha sido empaquetado y transferido al Agente de Cierre para el Cobro de Honorarios - CERRADO EXITOSAMENTE.\" } }) }}"
+      },
+      "id": "send-success",
+      "name": "Enviar Cierre",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2500,
+        -200
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "gSEnpEOi1zRXy9fn",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM bot_sessions WHERE phone_number = '{{ $('Extraer Datos').first().json.phone }}';"
+      },
+      "id": "cerrar-sesion",
+      "name": "Cerrar Sesión",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        2700,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Modulo 5": {
+      "main": [
+        [
+          {
+            "node": "Extraer Datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Datos": {
+      "main": [
+        [
+          {
+            "node": "Verificar Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Archivo": {
+      "main": [
+        [
+          {
+            "node": "Obtener URL Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Sin Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener URL Archivo": {
+      "main": [
+        [
+          {
+            "node": "Obtener Expediente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Expediente": {
+      "main": [
+        [
+          {
+            "node": "Set Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Prompt": {
+      "main": [
+        [
+          {
+            "node": "Descargar Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar Archivo": {
+      "main": [
+        [
+          {
+            "node": "Convertir a Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convertir a Base64": {
+      "main": [
+        [
+          {
+            "node": "Llamar API OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llamar API OCR": {
+      "main": [
+        [
+          {
+            "node": "¿Es Válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Válido?": {
+      "main": [
+        [
+          {
+            "node": "DB APROBADO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DB RECHAZADO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB RECHAZADO": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB APROBADO": {
+      "main": [
+        [
+          {
+            "node": "Restaurar Binario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurar Binario": {
+      "main": [
+        [
+          {
+            "node": "Subir a Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir a Drive": {
+      "main": [
+        [
+          {
+            "node": "Enviar Cierre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Cierre": {
+      "main": [
+        [
+          {
+            "node": "Cerrar Sesión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

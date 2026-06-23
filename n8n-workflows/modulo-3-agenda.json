@@ -3,31 +3,52 @@
   "nodes": [
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE bot_sessions SET current_step = 'SEGUIMIENTO_3_DIAS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Respuesta').first().json.phone }}';",
+        "options": {}
+      },
+      "id": "b1717877-0640-4db7-b593-1eeb2c721092",
+      "name": "Mandar a Seguimiento",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        96,
+        1456
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ugn76S3Zqub01cyD",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "httpMethod": "POST",
         "path": "modulo3-ingesta",
         "options": {}
       },
-      "id": "webhook-ingesta",
+      "id": "1f2b6264-8af2-4c1a-a178-7c162949e4b6",
       "name": "Webhook Modulo 3",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        0,
-        0
+        80,
+        736
       ],
-      "credentials": {}
+      "webhookId": "650adbf3-2dfe-44cb-b6e5-0e38f9bd0660"
     },
     {
       "parameters": {
         "jsCode": "const inputData = $input.first().json.body || $input.first().json;\nconst payload = inputData.payload;\nconst phone = inputData.phone || (payload.entry[0].changes[0].value.messages[0].from);\nconst current_step = inputData.current_step;\nconst msg = payload.entry[0].changes[0].value.messages[0];\n\nlet replyId = null;\nif (msg && msg.type === 'interactive' && msg.interactive.button_reply) {\n    replyId = msg.interactive.button_reply.id;\n} else if (msg && msg.type === 'text') {\n    replyId = msg.text.body.trim().toUpperCase();\n}\n\nreturn [{ json: { phone: phone, current_step: current_step, replyId: replyId, payload: payload } }];"
       },
-      "id": "extraer-respuesta",
+      "id": "a9a5b846-c92d-4a05-a922-594d607b7da8",
       "name": "Extraer Respuesta",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        200,
-        0
+        272,
+        736
       ]
     },
     {
@@ -37,8 +58,7 @@
         "rules": {
           "rules": [
             {
-              "value2": "ESPERANDO_RESPUESTA_CONTINUAR",
-              "output": 0
+              "value2": "ESPERANDO_RESPUESTA_CONTINUAR"
             },
             {
               "value2": "ESPERANDO_RESPUESTA_LLAMADA",
@@ -51,13 +71,13 @@
           ]
         }
       },
-      "id": "switch-paso",
+      "id": "a5265faa-9f17-4e34-8ffa-065881bc02b7",
       "name": "Switch Paso",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 1,
       "position": [
-        400,
-        0
+        480,
+        736
       ]
     },
     {
@@ -67,8 +87,7 @@
         "rules": {
           "rules": [
             {
-              "value2": "SI_CONTINUAR",
-              "output": 0
+              "value2": "SI_CONTINUAR"
             },
             {
               "value2": "NO_CONTINUAR",
@@ -77,26 +96,27 @@
           ]
         }
       },
-      "id": "switch-continuar",
+      "id": "448c7da0-4600-4f15-b643-d9e5e63f162e",
       "name": "¿Desea Continuar?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 1,
       "position": [
-        600,
-        -200
+        672,
+        544
       ]
     },
     {
       "parameters": {
-        "fileSelector": "/home/node/workflows/Empresa_Meb_Consultores.pdf"
+        "fileSelector": "/home/node/.n8n-files/Empresa_Meb_Consultores.pdf",
+        "options": {}
       },
-      "id": "read-empresa",
+      "id": "ed847c55-c10c-4150-965f-b2dcfd86b369",
       "name": "Read Empresa",
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        800,
-        -400
+        880,
+        336
       ]
     },
     {
@@ -106,7 +126,7 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
-        "specifyBody": "multipart",
+        "contentType": "multipart-form-data",
         "bodyParameters": {
           "parameters": [
             {
@@ -119,19 +139,20 @@
               "inputDataFieldName": "data"
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "id": "upload-empresa",
+      "id": "c7e8d19c-1ee9-4f01-a6fa-07154fef2525",
       "name": "Upload Empresa",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1000,
-        -400
+        1072,
+        336
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
@@ -144,34 +165,36 @@
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Empresa_Meb_Consultores.pdf\" } }"
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Empresa_Meb_Consultores.pdf\" } }",
+        "options": {}
       },
-      "id": "send-empresa",
+      "id": "5690a991-b5dc-405e-a738-cf7b3278e9f3",
       "name": "Send Empresa",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1200,
-        -400
+        1280,
+        336
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
     },
     {
       "parameters": {
-        "fileSelector": "/home/node/workflows/Contrato_Meb_Consultores.pdf"
+        "fileSelector": "/home/node/.n8n-files/Contrato_Meb_Consultores.pdf",
+        "options": {}
       },
-      "id": "read-contrato",
+      "id": "96430fa8-4fe5-4dc6-809e-877cfe7464b3",
       "name": "Read Contrato",
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        1400,
-        -400
+        1472,
+        336
       ]
     },
     {
@@ -181,7 +204,7 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
-        "specifyBody": "multipart",
+        "contentType": "multipart-form-data",
         "bodyParameters": {
           "parameters": [
             {
@@ -194,19 +217,20 @@
               "inputDataFieldName": "data"
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "id": "upload-contrato",
+      "id": "1d9fee93-5044-45b2-b569-a9785bccb4fb",
       "name": "Upload Contrato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1600,
-        -400
+        1680,
+        336
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
@@ -219,34 +243,36 @@
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Contrato_Meb_Consultores.pdf\" } }"
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Contrato_Meb_Consultores.pdf\" } }",
+        "options": {}
       },
-      "id": "send-contrato",
+      "id": "a1afd363-ae91-4886-be49-8bbb58945e41",
       "name": "Send Contrato",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1800,
-        -400
+        1872,
+        336
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
     },
     {
       "parameters": {
-        "fileSelector": "/home/node/workflows/Requisitos_Documentales.pdf"
+        "fileSelector": "/home/node/.n8n-files/Requisitos_Documentales.pdf",
+        "options": {}
       },
-      "id": "read-requisitos",
+      "id": "9eab126c-0846-41d6-a93e-933e6c2a56fa",
       "name": "Read Requisitos",
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        2000,
-        -400
+        2080,
+        336
       ]
     },
     {
@@ -256,7 +282,7 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
-        "specifyBody": "multipart",
+        "contentType": "multipart-form-data",
         "bodyParameters": {
           "parameters": [
             {
@@ -269,19 +295,20 @@
               "inputDataFieldName": "data"
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "id": "upload-requisitos",
+      "id": "60a09c94-eab2-41d9-a4cb-fd944b497173",
       "name": "Upload Requisitos",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        2200,
-        -400
+        2272,
+        336
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
@@ -294,19 +321,20 @@
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Requisitos_Documentales.pdf\" } }"
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Requisitos_Documentales.pdf\" } }",
+        "options": {}
       },
-      "id": "send-requisitos",
+      "id": "dada90f6-747b-48df-9f3b-261b7d04db12",
       "name": "Send Requisitos",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        2400,
-        -400
+        2480,
+        336
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
@@ -315,27 +343,28 @@
       "parameters": {
         "jsCode": "const phone = $('Extraer Respuesta').first().json.phone;\nconst agentes = ['Agente 1', 'Agente 2', 'Agente 3', 'Agente 4', 'Agente 5', 'Agente 6'];\nconst agenteAsignado = agentes[Math.floor(Math.random() * agentes.length)];\nlet cita = new Date();\ncita.setHours(cita.getHours() + 1);\n\nreturn [{ json: { phone: phone, agenteAsignado: agenteAsignado, fechaHoraCita: cita.toISOString() } }];"
       },
-      "id": "asignar-agente",
+      "id": "81805000-3803-46d7-b84b-523dae58a369",
       "name": "Asignar Agente y Cita",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2600,
-        -400
+        2672,
+        336
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT p.id FROM prospectos p WHERE p.telefono_contacto = '{{ $('Extraer Respuesta').first().json.phone }}';"
+        "query": "SELECT p.id FROM prospectos p WHERE p.telefono_contacto = '{{ $('Extraer Respuesta').first().json.phone }}';",
+        "options": {}
       },
-      "id": "get-prospecto-id",
+      "id": "0e12c869-1341-4cab-81e4-d47084bda79d",
       "name": "Obtener Prospecto ID",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.3,
       "position": [
-        2800,
-        -400
+        2880,
+        336
       ],
       "credentials": {
         "postgres": {
@@ -350,17 +379,17 @@
         "url": "=http://backend:8080/api/expedientes/prospectos/{{ $('Obtener Prospecto ID').first().json.id }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"agenteAsignado\": \"{{ $('Asignar Agente y Cita').first().json.agenteAsignado }}\", \"fechaHoraCita\": \"{{ $('Asignar Agente y Cita').first().json.fechaHoraCita }}\" }"
+        "jsonBody": "={ \"agenteAsignado\": \"{{ $('Asignar Agente y Cita').first().json.agenteAsignado }}\", \"fechaHoraCita\": \"{{ $('Asignar Agente y Cita').first().json.fechaHoraCita }}\" }",
+        "options": {}
       },
-      "id": "actualizar-agente-db",
+      "id": "74b1a339-caa4-4f66-a740-9bb850c3c391",
       "name": "Guardar Agente BD",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        3000,
-        -400
-      ],
-      "credentials": {}
+        3072,
+        336
+      ]
     },
     {
       "parameters": {
@@ -370,19 +399,20 @@
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"interactive\", \"interactive\": { \"type\": \"button\", \"body\": { \"text\": \"Se ha asignado a *{{ $('Asignar Agente y Cita').first().json.agenteAsignado }}* para darle seguimiento a tu trámite.\\n\\nAntes de enviarnos tus documentos, ¿deseas recibir una llamada de nuestro asistente virtual para aclarar dudas rápidas?\" }, \"action\": { \"buttons\": [ { \"type\": \"reply\", \"reply\": { \"id\": \"SI_LLAMADA\", \"title\": \"Sí, por favor\" } }, { \"type\": \"reply\", \"reply\": { \"id\": \"NO_LLAMADA\", \"title\": \"No, gracias\" } } ] } } }"
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"interactive\", \"interactive\": { \"type\": \"button\", \"body\": { \"text\": \"Se ha asignado a *{{ $('Asignar Agente y Cita').first().json.agenteAsignado }}* para darle seguimiento a tu trámite.\\n\\nAntes de enviarnos tus documentos, ¿deseas recibir una llamada de nuestro asistente virtual para aclarar dudas rápidas?\" }, \"action\": { \"buttons\": [ { \"type\": \"reply\", \"reply\": { \"id\": \"SI_LLAMADA\", \"title\": \"Sí, por favor\" } }, { \"type\": \"reply\", \"reply\": { \"id\": \"NO_LLAMADA\", \"title\": \"No, gracias\" } } ] } } }",
+        "options": {}
       },
-      "id": "msg-pregunta-llamada",
+      "id": "c240e396-d096-4eb5-b148-88fc05f4dd81",
       "name": "Mensaje Cita e IA",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        3200,
-        -400
+        3280,
+        336
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
@@ -390,15 +420,16 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE bot_sessions SET current_step = 'ESPERANDO_RESPUESTA_LLAMADA', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Respuesta').first().json.phone }}';"
+        "query": "UPDATE bot_sessions SET current_step = 'ESPERANDO_RESPUESTA_LLAMADA', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Respuesta').first().json.phone }}';",
+        "options": {}
       },
-      "id": "db-esperando-llamada",
+      "id": "aa84283f-27cf-4735-b5c8-a0343b35750b",
       "name": "Esperando Respuesta Llamada",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.3,
       "position": [
-        3400,
-        -400
+        3472,
+        336
       ],
       "credentials": {
         "postgres": {
@@ -414,8 +445,7 @@
         "rules": {
           "rules": [
             {
-              "value2": "SI_LLAMADA",
-              "output": 0
+              "value2": "SI_LLAMADA"
             },
             {
               "value2": "NO_LLAMADA",
@@ -424,27 +454,28 @@
           ]
         }
       },
-      "id": "switch-llamada",
+      "id": "4a556291-7c5d-4908-ae23-34442847211b",
       "name": "¿Quiere Llamada?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 1,
       "position": [
-        600,
-        0
+        672,
+        768
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE prospectos SET solicito_llamadaia = true WHERE telefono_contacto = '{{ $('Extraer Respuesta').first().json.phone }}' RETURNING id, nombre_completo, (SELECT monto_pension_actual FROM expedientes WHERE prospecto_id = prospectos.id LIMIT 1) as monto_pension;"
+        "query": "UPDATE prospectos SET solicito_llamadaia = true WHERE telefono_contacto = '{{ $('Extraer Respuesta').first().json.phone }}' RETURNING id, nombre_completo, (SELECT monto_pension_actual FROM expedientes WHERE prospecto_id = prospectos.id LIMIT 1) as monto_pension;",
+        "options": {}
       },
-      "id": "db-si-llamada",
+      "id": "2865733c-7858-4b7b-a39b-fa87a99348e5",
       "name": "DB: S Llamada",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.3,
       "position": [
-        800,
-        -100
+        880,
+        640
       ],
       "credentials": {
         "postgres": {
@@ -462,7 +493,7 @@
           "parameters": [
             {
               "name": "authorization",
-              "value": "{{$env[\"BLAND_AI_KEY\"]}}"
+              "value": "org_296eaaba4de2c3752e3c6886560331a49b5b662cb9c32cfbe9b054d1230fb282874c11a9d35e25648fb469"
             },
             {
               "name": "Content-Type",
@@ -472,29 +503,31 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"phone_number\": \"+{{ $('Extraer Respuesta').first().json.phone }}\",\n  \"from\": \"+14152365121\",\n  \"language\": \"es\",\n  \"voice\": \"maya\",\n  \"webhook\": \"https://proxy.mebconsultores.com/webhook/bland-ai-webhook\",\n  \"task\": \"Eres un asistente de IA para Meb Consultores. Estás llamando al cliente llamado {{ $('DB: S Llamada').first().json.nombre_completo }} porque aprobó su calificación inicial de pensión (Monto estimado: {{ $('DB: S Llamada').first().json.monto_pension }} pesos). Tu objetivo es confirmar que desea continuar con el trámite.\\n\\nDebes explicar lo siguiente:\\n- Se entregará manualmente el contrato.\\n- Los documentos se aceptan ÚNICAMENTE escaneados por escáner. NO se aceptan fotografías de celular.\\n\\nGuion sugerido:\\n'Hola señor/señora {{ $('DB: S Llamada').first().json.nombre_completo }}, para poder avanzar con su expediente, los documentos deben enviarse únicamente escaneados por escáner. No se aceptan fotografías tomadas con celular.'\\n\\nResponde cualquier duda basándote en esta información y en el Manual Maestro de Operación.\"\n}"
+        "jsonBody": "={\n  \"phone_number\": \"+{{ $('Extraer Respuesta').first().json.phone }}\",\n  \"from\": \"+14152365121\",\n  \"language\": \"es\",\n  \"voice\": \"maya\",\n  \"webhook\": \"https://proxy.mebconsultores.com/webhook/bland-ai-webhook\",\n  \"task\": \"Eres un asistente de IA para Meb Consultores. Estás llamando al cliente llamado {{ $('DB: S Llamada').first().json.nombre_completo }} porque aprobó su calificación inicial de pensión (Monto estimado: {{ $('DB: S Llamada').first().json.monto_pension }} pesos). Tu objetivo es confirmar que desea continuar con el trámite.\\n\\nDebes explicar lo siguiente:\\n- Se entregará manualmente el contrato.\\n- Los documentos se aceptan ÚNICAMENTE escaneados por escáner. NO se aceptan fotografías de celular.\\n\\nGuion sugerido:\\n'Hola señor/señora {{ $('DB: S Llamada').first().json.nombre_completo }}, para poder avanzar con su expediente, los documentos deben enviarse únicamente escaneados por escáner. No se aceptan fotografías tomadas con celular.'\\n\\nResponde cualquier duda basándote en esta información y en el Manual Maestro de Operación.\"\n}",
+        "options": {}
       },
-      "id": "bland-ai",
+      "id": "e0f0f223-d603-48d7-b6cc-dcb25b277ef6",
       "name": "Llamar Bland AI",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1000,
-        -100
+        1072,
+        640
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE prospectos SET solicito_llamadaia = false WHERE telefono_contacto = '{{ $('Extraer Respuesta').first().json.phone }}';"
+        "query": "UPDATE prospectos SET solicito_llamadaia = false WHERE telefono_contacto = '{{ $('Extraer Respuesta').first().json.phone }}';",
+        "options": {}
       },
-      "id": "db-no-llamada",
+      "id": "1f87460e-f381-4110-a965-4f24280967b2",
       "name": "DB: No Llamada",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.3,
       "position": [
-        800,
-        100
+        880,
+        848
       ],
       "credentials": {
         "postgres": {
@@ -511,19 +544,20 @@
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"interactive\", \"interactive\": { \"type\": \"button\", \"body\": { \"text\": \"Está bien, no realizaremos la llamada. Estamos disponibles de las 08 a las 19 horas para cualquier duda.\\n\\n¿Deseas continuar con el envío de tus documentos?\" }, \"action\": { \"buttons\": [ { \"type\": \"reply\", \"reply\": { \"id\": \"SI_DOCS\", \"title\": \"Sí, continuar\" } }, { \"type\": \"reply\", \"reply\": { \"id\": \"NO_DOCS\", \"title\": \"No, gracias\" } } ] } } }"
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": {\n      \"text\": \"¿Deseas continuar con el envío de tus documentos?\"\n    },\n    \"action\": {\n      \"buttons\": [\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"SI_DOCS\",\n            \"title\": \"Sí, continuar\"\n          }\n        },\n        {\n          \"type\": \"reply\",\n          \"reply\": {\n            \"id\": \"NO_DOCS\",\n            \"title\": \"No, gracias\"\n          }\n        }\n      ]\n    }\n  }\n}\n",
+        "options": {}
       },
-      "id": "preguntar-docs",
+      "id": "7c6dced6-7107-4799-b343-df833887a692",
       "name": "Preguntar Continuar con Docs",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1000,
-        100
+        2992,
+        848
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
@@ -531,15 +565,16 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE bot_sessions SET current_step = 'ESPERANDO_CONFIRMACION_DOCS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Respuesta').first().json.phone }}';"
+        "query": "UPDATE bot_sessions SET current_step = 'ESPERANDO_CONFIRMACION_DOCS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Respuesta').first().json.phone }}';",
+        "options": {}
       },
-      "id": "db-esperando-docs-conf",
+      "id": "4aa1a324-7618-44a4-ad7d-e4efada9b069",
       "name": "Esperando Confirmacion Docs",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.3,
       "position": [
-        1200,
-        100
+        3200,
+        848
       ],
       "credentials": {
         "postgres": {
@@ -555,8 +590,7 @@
         "rules": {
           "rules": [
             {
-              "value2": "SI_DOCS",
-              "output": 0
+              "value2": "SI_DOCS"
             },
             {
               "value2": "NO_DOCS",
@@ -565,13 +599,13 @@
           ]
         }
       },
-      "id": "switch-docs",
+      "id": "1426e0a2-7480-43e8-96a3-f101bfa8bca9",
       "name": "¿Continua Docs?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 1,
       "position": [
-        600,
-        300
+        672,
+        1040
       ]
     },
     {
@@ -582,19 +616,20 @@
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"text\", \"text\": { \"body\": \"¡Perfecto! Por favor, envíame a continuación los documentos requeridos de uno en uno.\\n\\nRecuerda: **SÓLO DOCUMENTOS ESCANEADOS**. Las fotos de celular serán rechazadas automáticamente.\" } }"
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Extraer Respuesta').first().json.phone || $('Extraer Phone Bland').first().json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"¡Excelente! Para armar tu expediente, te iremos pidiendo los documentos uno por uno.\\n\\n⚠️ *IMPORTANTE*: SOLO se aceptan documentos escaneados por escáner (PDF o imagen escaneada). NO se aceptan fotos tomadas con el celular.\\n\\nPor favor, envíanos tu primer documento:\\n👉 *INE (por ambos lados)*\"\n  }\n}\n",
+        "options": {}
       },
-      "id": "msg-modulo4",
+      "id": "085e2b30-9bd4-4752-aa0e-942358805c83",
       "name": "Mensaje Iniciar Modulo 4",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        800,
-        300
+        912,
+        1088
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
@@ -602,15 +637,16 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE bot_sessions SET current_module = 'MODULO_4', current_step = 'ESPERANDO_DOCUMENTOS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Respuesta').first().json.phone }}';"
+        "query": "UPDATE bot_sessions SET current_module = 'MODULO_4', current_step = 'ESPERANDO_DOCUMENTOS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Respuesta').first().json.phone }}';",
+        "options": {}
       },
-      "id": "db-modulo4",
+      "id": "7c9a5f92-7eeb-4114-a1ab-cbeb9a3f432f",
       "name": "Avanzar a Módulo 4",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.3,
       "position": [
-        1000,
-        300
+        1152,
+        1088
       ],
       "credentials": {
         "postgres": {
@@ -625,27 +661,27 @@
         "path": "bland-ai-webhook",
         "options": {}
       },
-      "id": "webhook-bland-ai",
+      "id": "cee36b34-8745-41e0-85b5-fc4607df17b4",
       "name": "Webhook Bland AI",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        0,
-        500
+        80,
+        1280
       ],
-      "credentials": {}
+      "webhookId": "bf1a1813-e4a7-450d-b35d-dde9e027b15a"
     },
     {
       "parameters": {
         "jsCode": "const phoneRaw = $input.first().json.body.to || $input.first().json.body.phone_number;\nlet phone = phoneRaw.replace('+', '');\nreturn [{ json: { phone: phone } }];"
       },
-      "id": "extraer-phone-bland",
+      "id": "7ac1d67b-8492-4674-ab0d-0819f402aff2",
       "name": "Extraer Phone Bland",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        200,
-        500
+        272,
+        1280
       ]
     },
     {
@@ -656,19 +692,20 @@
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $json.phone }}\", \"type\": \"text\", \"text\": { \"body\": \"Esperamos que la llamada haya aclarado tus dudas.\\n\\nPara avanzar, envíame a continuación los documentos requeridos de uno en uno.\\n\\nRecuerda: **SÓLO DOCUMENTOS ESCANEADOS**. Las fotos de celular serán rechazadas automáticamente.\" } }"
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $json.phone }}\", \"type\": \"text\", \"text\": { \"body\": \"Esperamos que la llamada haya aclarado tus dudas.\\n\\nPara avanzar, envíame a continuación los documentos requeridos de uno en uno.\\n\\nRecuerda: **SÓLO DOCUMENTOS ESCANEADOS**. Las fotos de celular serán rechazadas automáticamente.\" } }",
+        "options": {}
       },
-      "id": "msg-modulo4-bland",
+      "id": "e92681bd-dbc6-4598-8455-330220f71c6f",
       "name": "Mensaje Iniciar Modulo 4 (Post-Llamada)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        400,
-        500
+        480,
+        1280
       ],
       "credentials": {
         "whatsAppApi": {
-          "id": "gSEnpEOi1zRXy9fn",
+          "id": "JDMUH0uwR35H4ruO",
           "name": "WhatsApp account"
         }
       }
@@ -676,15 +713,16 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE bot_sessions SET current_module = 'MODULO_4', current_step = 'ESPERANDO_DOCUMENTOS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Phone Bland').first().json.phone }}';"
+        "query": "UPDATE bot_sessions SET current_module = 'MODULO_4', current_step = 'ESPERANDO_DOCUMENTOS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Phone Bland').first().json.phone }}';",
+        "options": {}
       },
-      "id": "db-modulo4-bland",
+      "id": "3bc87265-57d1-4f27-8d73-1ddf17f34b6a",
       "name": "Avanzar a Módulo 4 (Post-Llamada)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.3,
       "position": [
-        600,
-        500
+        672,
+        1280
       ],
       "credentials": {
         "postgres": {
@@ -692,8 +730,269 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/.n8n-files/Empresa_Meb_Consultores.pdf",
+        "options": {}
+      },
+      "id": "57152a81-444a-42c9-af7a-fc3a8254aef6",
+      "name": "Read Empresa1",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 3').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a6a09e7a-7696-4471-8a03-f72a810bf565",
+      "name": "Upload Empresa1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1408,
+        848
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JDMUH0uwR35H4ruO",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 3').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Empresa_Meb_Consultores.pdf\" } }",
+        "options": {}
+      },
+      "id": "75219519-2527-4f39-b2b3-7eeb71342b07",
+      "name": "Send Empresa1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1584,
+        848
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JDMUH0uwR35H4ruO",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/.n8n-files/Contrato_Meb_Consultores.pdf",
+        "options": {}
+      },
+      "id": "0dddf574-9466-44d0-999b-36824dc289d8",
+      "name": "Read Contrato1",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1776,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 3').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "560752ca-7150-4d6f-b273-21ee944e836c",
+      "name": "Upload Contrato1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1984,
+        848
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JDMUH0uwR35H4ruO",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 3').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Contrato_Meb_Consultores.pdf\" } }",
+        "options": {}
+      },
+      "id": "f02bd009-be14-4204-b2e2-34d2573b139d",
+      "name": "Send Contrato1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2176,
+        848
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JDMUH0uwR35H4ruO",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/.n8n-files/Requisitos_Documentales.pdf",
+        "options": {}
+      },
+      "id": "51f7fb09-2386-4cde-8477-e725512f7ad3",
+      "name": "Read Requisitos1",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2384,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 3').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "34ca56cf-4ed2-4967-987a-9c9f54bbdb54",
+      "name": "Upload Requisitos1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2576,
+        848
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JDMUH0uwR35H4ruO",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 3').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"document\", \"document\": { \"id\": \"{{ $json.id }}\", \"filename\": \"Requisitos_Documentales.pdf\" } }",
+        "options": {}
+      },
+      "id": "72df19e2-1405-4a52-af01-8d41f25556ed",
+      "name": "Send Requisitos1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2784,
+        848
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JDMUH0uwR35H4ruO",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 3').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"A continuación te enviamos los documentos de la empresa. ¿Deseas continuar?\"\n  }\n}",
+        "options": {}
+      },
+      "id": "b5e9401c-837c-4899-9e08-244d5ab98e95",
+      "name": "Preguntar Continuar con Docs1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1056,
+        848
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "JDMUH0uwR35H4ruO",
+          "name": "WhatsApp account"
+        }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
     "Webhook Modulo 3": {
       "main": [
@@ -750,8 +1049,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Read Empresa": {
@@ -930,7 +1228,7 @@
       "main": [
         [
           {
-            "node": "Preguntar Continuar con Docs",
+            "node": "Preguntar Continuar con Docs1",
             "type": "main",
             "index": 0
           }
@@ -956,8 +1254,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Mensaje Iniciar Modulo 4": {
@@ -1003,6 +1300,133 @@
           }
         ]
       ]
+    },
+    "Read Empresa1": {
+      "main": [
+        [
+          {
+            "node": "Upload Empresa1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Empresa1": {
+      "main": [
+        [
+          {
+            "node": "Send Empresa1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Empresa1": {
+      "main": [
+        [
+          {
+            "node": "Read Contrato1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Contrato1": {
+      "main": [
+        [
+          {
+            "node": "Upload Contrato1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Contrato1": {
+      "main": [
+        [
+          {
+            "node": "Send Contrato1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Contrato1": {
+      "main": [
+        [
+          {
+            "node": "Read Requisitos1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Requisitos1": {
+      "main": [
+        [
+          {
+            "node": "Upload Requisitos1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Requisitos1": {
+      "main": [
+        [
+          {
+            "node": "Send Requisitos1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperando Confirmacion Docs": {
+      "main": [
+        []
+      ]
+    },
+    "Send Requisitos1": {
+      "main": [
+        [
+          {
+            "node": "Preguntar Continuar con Docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preguntar Continuar con Docs1": {
+      "main": [
+        [
+          {
+            "node": "Read Empresa1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
-  }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b809731c-664b-4e7e-83e6-f664aa91876d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c1eabc2da3e5361e7272306329b0f69f7ad64d8e127124b53ae317866642751e"
+  },
+  "id": "XrBvA7hIoh07WRTH",
+  "tags": []
 }

@@ -31,6 +31,15 @@ public class Expediente {
     private String tipoCredito;
     private BigDecimal retenciones;
 
+    private BigDecimal aumentoPension;
+    private BigDecimal retroactivoFicticio;
+    private BigDecimal retroactivoFinal;
+    
+    @Builder.Default
+    private Boolean pagado = false;
+    
+    private String linkConstancia;
+
     // Google Drive
     private String nombreCarpetaDrive;
     private String urlCarpetaDrive;

@@ -47,6 +47,12 @@ public class Prospecto {
     private String agenteAsignado;
     private LocalDateTime fechaHoraCita;
 
+    private String correoElectronico;
+    private String correoSipre;
+    
+    @Builder.Default
+    private Boolean contactado = false;
+
     private LocalDateTime fechaIngreso;
     private LocalDateTime fechaUltimaActualizacion;
 

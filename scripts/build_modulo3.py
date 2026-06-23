@@ -1,18 +1,22 @@
 import json
 
 def get_node(id, name, type, params, pos):
+    creds = {}
+    if "whatsAppApi" in str(params) or "msg-modulo4" in id:
+        creds = {"whatsAppApi": {"id": "gSEnpEOi1zRXy9fn", "name": "WhatsApp account"}}
+    elif "postgres" in type:
+        creds = {"postgres": {"id": "1", "name": "Postgres account"}}
+    elif "googleDrive" in type:
+        creds = {"googleDriveOAuth2Api": {"id": "xH344n6lX17B6nFm", "name": "Google Drive account"}}
+        
     return {
         "parameters": params,
         "id": id,
         "name": name,
         "type": type,
-        "typeVersion": 4 if "httpRequest" in type else 2.3 if "postgres" in type else 1,
+        "typeVersion": 4 if "httpRequest" in type else 2.3 if "postgres" in type else 3 if "googleDrive" in type else 1,
         "position": pos,
-        "credentials": {
-            "whatsAppApi": {"id": "gSEnpEOi1zRXy9fn", "name": "WhatsApp account"}
-        } if "whatsAppApi" in str(params) else {
-            "postgres": {"id": "ugn76S3Zqub01cyD", "name": "Postgres account"}
-        } if "postgres" in type else {}
+        "credentials": creds
     }
 
 nodes = [
@@ -337,20 +341,38 @@ nodes = [
         "position": [600, 300]
     },
     
-    # SI_DOCS -> Modulo 4
-    get_node("msg-modulo4", "Mensaje Iniciar Modulo 4", "n8n-nodes-base.httpRequest", {
+    # Shared Drive Folder Logic
+    get_node("get-datos-carpeta", "Obtener Datos para Carpeta", "n8n-nodes-base.postgres", {
+        "operation": "executeQuery",
+        "query": "SELECT p.nombre_completo, p.curp, p.nss, p.telefono_contacto as phone, e.id as exp_id FROM prospectos p JOIN expedientes e ON p.id = e.prospecto_id WHERE p.telefono_contacto = '{{ $json.phone }}';"
+    }, [800, 400]),
+    
+    get_node("crear-carpeta-drive", "Crear Carpeta Drive", "n8n-nodes-base.googleDrive", {
+        "resource": "folder",
+        "operation": "create",
+        "name": "={{ $json.nombre_completo }} {{ $json.curp }} {{ $json.nss }}",
+        "options": {
+            "parents": ["{{ $env[\"GOOGLE_DRIVE_MASTER_FOLDER_ID\"] }}"]
+        }
+    }, [1000, 400]),
+    
+    get_node("guardar-carpeta-db", "Guardar Carpeta BD", "n8n-nodes-base.postgres", {
+        "operation": "executeQuery",
+        "query": "UPDATE expedientes SET nombre_carpeta_drive = '{{ $json.id }}', url_carpeta_drive = '{{ $json.webViewLink }}' WHERE id = {{ $('Obtener Datos para Carpeta').first().json.exp_id }};"
+    }, [1200, 400]),
+
+    get_node("msg-modulo4-shared", "Mensaje Iniciar Modulo 4", "n8n-nodes-base.httpRequest", {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v17.0/{{ $('Webhook Modulo 3').first().json.body.payload.entry[0].changes[0].value.metadata.phone_number_id }}/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "whatsAppApi",
+        "url": "=https://graph.facebook.com/v17.0/{{$env[\"META_PHONE_NUMBER_ID\"]}}/messages",
         "sendBody": True,
         "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Extraer Respuesta').first().json.phone }}\", \"type\": \"text\", \"text\": { \"body\": \"¡Perfecto! Por favor, envíame a continuación los documentos requeridos de uno en uno.\\n\\nRecuerda: **SÓLO DOCUMENTOS ESCANEADOS**. Las fotos de celular serán rechazadas automáticamente.\" } }"
-    }, [800, 300]),
-    get_node("db-modulo4", "Avanzar a Módulo 4", "n8n-nodes-base.postgres", {
+        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Obtener Datos para Carpeta').first().json.phone }}\", \"type\": \"text\", \"text\": { \"body\": \"¡Perfecto! Por favor, envíame a continuación los documentos requeridos de uno en uno.\\n\\nRecuerda: **SÓLO DOCUMENTOS ESCANEADOS**. Las fotos de celular serán rechazadas automáticamente.\" } }"
+    }, [1400, 400]),
+    
+    get_node("db-modulo4-shared", "Avanzar a Módulo 4", "n8n-nodes-base.postgres", {
         "operation": "executeQuery",
-        "query": "UPDATE bot_sessions SET current_module = 'MODULO_4', current_step = 'ESPERANDO_DOCUMENTOS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Respuesta').first().json.phone }}';"
-    }, [1000, 300]),
+        "query": "UPDATE bot_sessions SET current_module = 'MODULO_4', current_step = 'ESPERANDO_DOCUMENTOS', updated_at = NOW() WHERE phone_number = '{{ $('Obtener Datos para Carpeta').first().json.phone }}';"
+    }, [1600, 400]),
 
     # Webhook Bland AI (Se dispara cuando acaba la llamada)
     get_node("webhook-bland-ai", "Webhook Bland AI", "n8n-nodes-base.webhook", {
@@ -366,19 +388,7 @@ nodes = [
         "typeVersion": 2,
         "position": [200, 500]
     },
-    get_node("msg-modulo4-bland", "Mensaje Iniciar Modulo 4 (Post-Llamada)", "n8n-nodes-base.httpRequest", {
-        "method": "POST",
-        "url": "https://graph.facebook.com/v17.0/{{$env[\"META_PHONE_NUMBER_ID\"]}}/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "whatsAppApi",
-        "sendBody": True,
-        "specifyBody": "json",
-        "jsonBody": "={ \"messaging_product\": \"whatsapp\", \"to\": \"{{ $json.phone }}\", \"type\": \"text\", \"text\": { \"body\": \"Esperamos que la llamada haya aclarado tus dudas.\\n\\nPara avanzar, envíame a continuación los documentos requeridos de uno en uno.\\n\\nRecuerda: **SÓLO DOCUMENTOS ESCANEADOS**. Las fotos de celular serán rechazadas automáticamente.\" } }"
-    }, [400, 500]),
-    get_node("db-modulo4-bland", "Avanzar a Módulo 4 (Post-Llamada)", "n8n-nodes-base.postgres", {
-        "operation": "executeQuery",
-        "query": "UPDATE bot_sessions SET current_module = 'MODULO_4', current_step = 'ESPERANDO_DOCUMENTOS', updated_at = NOW() WHERE phone_number = '{{ $('Extraer Phone Bland').first().json.phone }}';"
-    }, [600, 500])
+
 ]
 
 connections = {
@@ -428,16 +438,20 @@ connections = {
     # BRANCH 2
     "¿Continua Docs?": {
         "main": [
-            [{"node": "Mensaje Iniciar Modulo 4", "type": "main", "index": 0}],
+            [{"node": "Obtener Datos para Carpeta", "type": "main", "index": 0}],
             []
         ]
     },
-    "Mensaje Iniciar Modulo 4": {"main": [[{"node": "Avanzar a Módulo 4", "type": "main", "index": 0}]]},
     
     # Webhook Bland
     "Webhook Bland AI": {"main": [[{"node": "Extraer Phone Bland", "type": "main", "index": 0}]]},
-    "Extraer Phone Bland": {"main": [[{"node": "Mensaje Iniciar Modulo 4 (Post-Llamada)", "type": "main", "index": 0}]]},
-    "Mensaje Iniciar Modulo 4 (Post-Llamada)": {"main": [[{"node": "Avanzar a Módulo 4 (Post-Llamada)", "type": "main", "index": 0}]]}
+    "Extraer Phone Bland": {"main": [[{"node": "Obtener Datos para Carpeta", "type": "main", "index": 0}]]},
+
+    # Shared Folder Sequence
+    "Obtener Datos para Carpeta": {"main": [[{"node": "Crear Carpeta Drive", "type": "main", "index": 0}]]},
+    "Crear Carpeta Drive": {"main": [[{"node": "Guardar Carpeta BD", "type": "main", "index": 0}]]},
+    "Guardar Carpeta BD": {"main": [[{"node": "Mensaje Iniciar Modulo 4", "type": "main", "index": 0}]]},
+    "Mensaje Iniciar Modulo 4": {"main": [[{"node": "Avanzar a Módulo 4", "type": "main", "index": 0}]]}
 }
 
 with open(r"c:\Users\Angel-PC\Downloads\PuntoClinico-Avances\PuntoClinico-Avances\n8n-workflows\modulo-3-agenda.json", "w", encoding="utf-8") as f:

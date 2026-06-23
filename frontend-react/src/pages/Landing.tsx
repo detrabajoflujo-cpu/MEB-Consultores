@@ -40,23 +40,80 @@ const Landing: React.FC = () => {
         <div className="hero-bg-overlay"></div>
       </section>
 
+      {/* STATS BAR */}
+      <section className="landing-stats">
+        <div className="landing-container flex-grid stats-grid">
+          <div className="stat-item fade-in-up delay-1">
+            <h2 className="stat-number">10+</h2>
+            <p className="stat-label">Años de Experiencia</p>
+          </div>
+          <div className="stat-item fade-in-up delay-2">
+            <h2 className="stat-number">500+</h2>
+            <p className="stat-label">Trámites Exitosos</p>
+          </div>
+          <div className="stat-item fade-in-up delay-3">
+            <h2 className="stat-number">98%</h2>
+            <p className="stat-label">Casos de Éxito</p>
+          </div>
+          <div className="stat-item fade-in-up delay-4">
+            <h2 className="stat-number">100%</h2>
+            <p className="stat-label">Asesoría Personalizada</p>
+          </div>
+        </div>
+      </section>
+
       {/* INFO SECTION */}
       <section className="landing-info">
-        <div className="landing-container flex-grid">
-          <div className="info-card">
-            <div className="info-icon">🛡️</div>
-            <h3>Seguridad Jurídica</h3>
-            <p>Trámites 100% legales y transparentes. Su expediente siempre en manos de expertos.</p>
+        <div className="landing-container">
+          <div className="section-header text-center fade-in-up">
+            <h2 className="section-title">¿Por qué elegir a <span className="text-navy">MEB Consultores</span>?</h2>
+            <p className="section-subtitle">Brindamos soluciones integrales con el mayor profesionalismo y dedicación.</p>
           </div>
-          <div className="info-card">
-            <div className="info-icon">⏱️</div>
-            <h3>Agilidad y Rapidez</h3>
-            <p>Automatizamos los procesos para reducir los tiempos de espera y darle resultados reales.</p>
+          <div className="flex-grid mt-4">
+            <div className="info-card fade-in-up delay-1">
+              <div className="info-icon">🛡️</div>
+              <h3>Seguridad Jurídica</h3>
+              <p>Trámites 100% legales y transparentes. Su expediente siempre está protegido y gestionado por expertos reconocidos.</p>
+            </div>
+            <div className="info-card fade-in-up delay-2">
+              <div className="info-icon">⏱️</div>
+              <h3>Agilidad y Rapidez</h3>
+              <p>Aceleramos cada etapa administrativa mediante tecnología de vanguardia para entregarle resultados en el menor tiempo posible.</p>
+            </div>
+            <div className="info-card fade-in-up delay-3">
+              <div className="info-icon">🤝</div>
+              <h3>Acompañamiento Total</h3>
+              <p>No estará solo. Desde el primer análisis gratuito hasta que reciba su resolución final, nuestro equipo le guiará paso a paso.</p>
+            </div>
           </div>
-          <div className="info-card">
-            <div className="info-icon">🤝</div>
-            <h3>Acompañamiento</h3>
-            <p>Desde el primer análisis hasta la resolución final, nuestro equipo estará a su lado.</p>
+        </div>
+      </section>
+
+      {/* PROCESS SECTION */}
+      <section className="landing-process">
+        <div className="landing-container">
+          <div className="section-header text-center fade-in-up">
+            <h2 className="section-title text-white">Nuestro <span className="text-gold">Proceso</span></h2>
+            <p className="section-subtitle text-silver">Un camino claro, seguro y estructurado hacia su pensión.</p>
+          </div>
+          <div className="process-timeline mt-4">
+            <div className="process-step fade-in-up delay-1">
+              <div className="step-number">1</div>
+              <h3>Diagnóstico Inicial</h3>
+              <p>Analizamos su caso de forma gratuita, evaluamos la viabilidad y le explicamos sus mejores opciones legales.</p>
+            </div>
+            <div className="process-arrow fade-in-up delay-2">➔</div>
+            <div className="process-step fade-in-up delay-2">
+              <div className="step-number">2</div>
+              <h3>Gestión Documental</h3>
+              <p>Recopilamos, validamos e ingresamos su documentación ante las dependencias correspondientes sin que usted se preocupe.</p>
+            </div>
+            <div className="process-arrow fade-in-up delay-3">➔</div>
+            <div className="process-step fade-in-up delay-3">
+              <div className="step-number">3</div>
+              <h3>Resolución Exitosa</h3>
+              <p>Damos seguimiento puntual hasta obtener el dictamen favorable para asegurar el futuro financiero que merece.</p>
+            </div>
           </div>
         </div>
       </section>

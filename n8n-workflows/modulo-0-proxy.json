@@ -1,5 +1,5 @@
 {
-  "name": "Módulo 0: Enrutador Maestro (State Machine)",
+  "name": "M\u00f3dulo 0: Enrutador Maestro (State Machine)",
   "nodes": [
     {
       "parameters": {
@@ -9,7 +9,7 @@
         "options": {}
       },
       "id": "webhook-get-verify",
-      "name": "Verificación Meta (GET)",
+      "name": "Verificaci\u00f3n Meta (GET)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
@@ -53,7 +53,7 @@
         "jsCode": "const body = $input.first().json.body || $input.first().json;\ntry {\n  const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];\n  if (!message) return []; // Detener el flujo si es una notificacin de estado (ledo, entregado)\n  \n  let fromPhone = message.from || '';\n  if (fromPhone.startsWith('521') && fromPhone.length === 13) {\n      fromPhone = fromPhone.replace(/^521/, '52');\n  }\n  return [{ json: { phone: fromPhone, payload: body } }];\n} catch(e) {\n  return [{ json: { error: e.message } }];\n}"
       },
       "id": "limpiar-datos",
-      "name": "Limpiar Número",
+      "name": "Limpiar N\u00famero",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -85,7 +85,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const phone = $('Limpiar Número').first().json.phone;\nconst payload = $('Limpiar Número').first().json.payload;\nconst dbResult = $input.first().json;\n\nlet current_module = 'MODULO_1';\nlet current_step = 'NUEVO_LEAD';\n\nif (dbResult && dbResult.current_module) {\n    current_module = dbResult.current_module;\n    current_step = dbResult.current_step;\n}\n\nreturn [{ json: { phone: phone, current_module: current_module, current_step: current_step, payload: payload } }];"
+        "jsCode": "const phone = $('Limpiar N\u00famero').first().json.phone;\nconst payload = $('Limpiar N\u00famero').first().json.payload;\nconst dbResult = $input.first().json;\n\nlet current_module = 'MODULO_1';\nlet current_step = 'NUEVO_LEAD';\n\nif (dbResult && dbResult.current_module) {\n    current_module = dbResult.current_module;\n    current_step = dbResult.current_step;\n}\n\nreturn [{ json: { phone: phone, current_module: current_module, current_step: current_step, payload: payload } }];"
       },
       "id": "determinar-estado",
       "name": "Determinar Estado",
@@ -117,6 +117,10 @@
             {
               "value2": "MODULO_4",
               "output": 3
+            },
+            {
+              "value2": "MODULO_5",
+              "output": 4
             }
           ]
         }
@@ -136,11 +140,11 @@
         "url": "http://localhost:5678/webhook/modulo1-ingesta",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { phone: $json.phone, current_step: $json.current_step, payload: $json.payload } }}",
+        "jsonBody": "={{ ({ phone: $json.phone, current_step: $json.current_step, payload: $json.payload }) }}",
         "options": {}
       },
       "id": "http-mod1",
-      "name": "Lanzar Módulo 1",
+      "name": "Lanzar M\u00f3dulo 1",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -154,11 +158,11 @@
         "url": "http://localhost:5678/webhook/modulo2-ingesta",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { phone: $json.phone, current_step: $json.current_step, payload: $json.payload } }}",
+        "jsonBody": "={{ ({ phone: $json.phone, current_step: $json.current_step, payload: $json.payload }) }}",
         "options": {}
       },
       "id": "http-mod2",
-      "name": "Lanzar Módulo 2",
+      "name": "Lanzar M\u00f3dulo 2",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -172,21 +176,57 @@
         "url": "http://localhost:5678/webhook/modulo3-ingesta",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { phone: $json.phone, current_step: $json.current_step, payload: $json.payload } }}",
+        "jsonBody": "={{ ({ phone: $json.phone, current_step: $json.current_step, payload: $json.payload }) }}",
         "options": {}
       },
       "id": "http-mod3",
-      "name": "Lanzar Módulo 3",
+      "name": "Lanzar M\u00f3dulo 3",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
         1200,
         300
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo4",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ phone: $json.phone, current_step: $json.current_step, payload: $json.payload }) }}",
+        "options": {}
+      },
+      "id": "http-mod4",
+      "name": "Lanzar M\u00f3dulo 4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1200,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/modulo5",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ phone: $json.phone, current_step: $json.current_step, payload: $json.payload }) }}",
+        "options": {}
+      },
+      "id": "http-mod5",
+      "name": "Lanzar M\u00f3dulo 5",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1200,
+        700
+      ]
     }
   ],
   "connections": {
-    "Verificación Meta (GET)": {
+    "Verificaci\u00f3n Meta (GET)": {
       "main": [
         [
           {
@@ -201,14 +241,14 @@
       "main": [
         [
           {
-            "node": "Limpiar Número",
+            "node": "Limpiar N\u00famero",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Limpiar Número": {
+    "Limpiar N\u00famero": {
       "main": [
         [
           {
@@ -245,21 +285,35 @@
       "main": [
         [
           {
-            "node": "Lanzar Módulo 1",
+            "node": "Lanzar M\u00f3dulo 1",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Lanzar Módulo 2",
+            "node": "Lanzar M\u00f3dulo 2",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Lanzar Módulo 3",
+            "node": "Lanzar M\u00f3dulo 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lanzar M\u00f3dulo 4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lanzar M\u00f3dulo 5",
             "type": "main",
             "index": 0
           }

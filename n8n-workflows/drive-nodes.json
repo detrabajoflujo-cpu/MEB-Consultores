@@ -1,0 +1,68 @@
+[
+  {
+    "parameters": {
+      "operation": "executeQuery",
+      "query": "SELECT p.nombre_completo, p.curp, p.nss, p.telefono_contacto as phone, e.id as exp_id FROM prospectos p JOIN expedientes e ON p.id = e.prospecto_id WHERE p.telefono_contacto = '{{ $json.phone }}';"
+    },
+    "id": "get-datos-carpeta-manual",
+    "name": "Obtener Datos para Carpeta",
+    "type": "n8n-nodes-base.postgres",
+    "typeVersion": 2.3,
+    "position": [
+      800,
+      400
+    ],
+    "credentials": {
+      "postgres": {
+        "id": "1",
+        "name": "Postgres account"
+      }
+    }
+  },
+  {
+    "parameters": {
+      "resource": "folder",
+      "operation": "create",
+      "name": "={{ $json.nombre_completo }} {{ $json.curp }} {{ $json.nss }}",
+      "options": {
+        "parents": [
+          "{{ $env[\"GOOGLE_DRIVE_MASTER_FOLDER_ID\"] }}"
+        ]
+      }
+    },
+    "id": "crear-carpeta-drive-manual",
+    "name": "Crear Carpeta Drive",
+    "type": "n8n-nodes-base.googleDrive",
+    "typeVersion": 3,
+    "position": [
+      1000,
+      400
+    ],
+    "credentials": {
+      "googleDriveOAuth2Api": {
+        "id": "xH344n6lX17B6nFm",
+        "name": "Google Drive account"
+      }
+    }
+  },
+  {
+    "parameters": {
+      "operation": "executeQuery",
+      "query": "UPDATE expedientes SET nombre_carpeta_drive = '{{ $json.id }}', url_carpeta_drive = '{{ $json.webViewLink }}' WHERE id = {{ $('Obtener Datos para Carpeta').first().json.exp_id }};"
+    },
+    "id": "guardar-carpeta-db-manual",
+    "name": "Guardar Carpeta BD",
+    "type": "n8n-nodes-base.postgres",
+    "typeVersion": 2.3,
+    "position": [
+      1200,
+      400
+    ],
+    "credentials": {
+      "postgres": {
+        "id": "1",
+        "name": "Postgres account"
+      }
+    }
+  }
+]

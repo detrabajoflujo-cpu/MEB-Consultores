@@ -3,6 +3,7 @@ package com.crm.controllers;
 import com.crm.models.Expediente;
 import com.crm.models.Nota;
 import com.crm.models.Prospecto;
+import com.crm.repositories.ExpedienteRepository;
 import com.crm.repositories.NotaRepository;
 import com.crm.repositories.ProspectoRepository;
 import com.crm.services.ExpedienteService;
@@ -28,6 +29,7 @@ public class ExpedienteController {
     private final ExpedienteService expedienteService;
     private final ProspectoRepository prospectoRepository;
     private final NotaRepository notaRepository;
+    private final ExpedienteRepository expedienteRepository;
 
     // ================================================================
     // Prospectos — CRUD
@@ -141,12 +143,19 @@ public class ExpedienteController {
     @DeleteMapping("/prospectos/{id}")
     public ResponseEntity<?> eliminarProspecto(@PathVariable Long id) {
         try {
-            if (!prospectoRepository.existsById(id)) {
+            Prospecto p = prospectoRepository.findById(id).orElse(null);
+            if (p == null) {
                 return ResponseEntity.notFound().build();
             }
-            notaRepository.findByProspectoOrderByFechaCreacionDesc(
-                    prospectoRepository.findById(id).get()
-            ).forEach(notaRepository::delete);
+            
+            // Eliminar expediente asociado para evitar error de llave foránea
+            expedienteRepository.findByProspecto(p).ifPresent(expedienteRepository::delete);
+            
+            // Eliminar notas asociadas
+            notaRepository.findByProspectoOrderByFechaCreacionDesc(p)
+                .forEach(notaRepository::delete);
+                
+            // Finalmente eliminar el prospecto
             prospectoRepository.deleteById(id);
             return ResponseEntity.ok(Map.of("eliminado", true, "id", id));
         } catch (Exception e) {
@@ -164,6 +173,19 @@ public class ExpedienteController {
         return expedienteService.obtenerExpediente(id)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}/completo")
+    public ResponseEntity<?> actualizarExpedienteCompleto(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Expediente exp = expedienteService.actualizarExpedienteCompleto(id, body);
+            return ResponseEntity.ok(exp);
+        } catch (Exception e) {
+            log.error("Error actualizando expediente completo {}: {}", id, e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/curp/{curp}")

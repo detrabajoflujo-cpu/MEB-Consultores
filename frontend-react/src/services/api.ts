@@ -109,6 +109,19 @@ export async function inicializarDrive(id: number) {
   return res.data;
 }
 
+export async function actualizarExpedienteCompleto(id: number, data: any) {
+  if (USE_MOCK) return data;
+  // Strip fields not recognized by backend
+  const { observaciones, ...cleanData } = data;
+  try {
+    const res = await client.put(`/expedientes/${id}/completo`, cleanData);
+    return res.data;
+  } catch (err: any) {
+    console.error('[CRM API] Error guardando expediente:', err?.response?.status, err?.response?.data || err.message);
+    throw err;
+  }
+}
+
 // ============================================================
 // Notas — CRUD completo
 // ============================================================
